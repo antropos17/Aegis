@@ -10,6 +10,7 @@
   import Icon from './Icon.svelte';
   import ObservationHistory from './ObservationHistory.svelte';
   import ObservationResource from './ObservationResource.svelte';
+  import { isObjectRead, objectReadMatchesProcess } from '../runtime/object-read';
   let {
     row,
     telemetry,
@@ -44,7 +45,7 @@
       }),
     ),
   );
-  let path = $derived(String(row.file || row.path || row.cwd || ''));
+  let path = $derived(isObjectRead(row) ? '' : String(row.file || row.path || row.cwd || ''));
   let isNetwork = $derived(describeObservation(row).kind === 'Network');
   let parent = $derived(
     !isNetwork
@@ -53,7 +54,10 @@
   );
   let agent = $derived(
     describeObservation(row, instances(telemetry) as unknown as RecordData[]).actor
-      ? instances(telemetry).find((a) => a.instanceId && a.instanceId === row.instanceId)
+      ? instances(telemetry).find(
+          (a) =>
+            a.instanceId && a.instanceId === row.instanceId && objectReadMatchesProcess(row, a),
+        )
       : undefined,
   );
 </script>

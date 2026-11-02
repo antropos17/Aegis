@@ -1,5 +1,6 @@
 import { describeObservation } from '../../../src/shared/observation-display.js';
 import type { RecordData } from './host';
+import { isObjectRead } from './object-read';
 
 export interface ResourceVisual {
   icon: string;
@@ -11,6 +12,7 @@ export interface ResourceVisual {
  */
 export function resourceVisual(row: RecordData = {}): ResourceVisual {
   const info = describeObservation(row);
+  if (isObjectRead(row)) return { icon: 'file', label: 'Verified file object' };
   if (info.kind === 'Network') {
     if (typeof row.domain === 'string' && row.domain.trim())
       return { icon: 'globe', label: 'Domain name' };

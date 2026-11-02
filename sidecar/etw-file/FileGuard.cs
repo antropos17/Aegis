@@ -11,8 +11,11 @@ internal static class FileGuard
         using var broker = Process.GetProcessById(int.Parse(args[5]));
         using var ownerPipe = Security.Client(args[1]);
         Security.Verify(ownerPipe, collector, ulong.Parse(args[3]), false, true);
+        await FileQualificationDiagnostic.GuardCheckpoint(ownerPipe, "guard-owner-verified");
         using var brokerPipe = Security.Client(args[4]);
+        await FileQualificationDiagnostic.GuardCheckpoint(ownerPipe, "guard-broker-connected");
         Security.Verify(brokerPipe, broker, ulong.Parse(args[6]), false, false);
+        await FileQualificationDiagnostic.GuardCheckpoint(ownerPipe, "guard-broker-verified");
         FileTraceToken? owned = null;
         string? reservation = null;
         var collectorGone = collector.WaitForExitAsync();

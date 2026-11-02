@@ -3,6 +3,7 @@
   import { confirmed, invoke, type Host, type RecordData } from '../runtime/host';
   import { describeObservation, observationTime } from '../../../src/shared/observation-display.js';
   import { exactExceptionTarget } from '../runtime/false-positive-control';
+  import { isObjectRead, observationLabel, OBJECT_READ_EXPLANATION } from '../runtime/object-read';
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import ObservationIdentity from './ObservationIdentity.svelte';
@@ -29,7 +30,9 @@
   const exceptionTarget = $derived(exactExceptionTarget(request.row));
   const observedAt = $derived(observationTime(request.row.timestamp));
   const folderPath = $derived(
-    info.kind !== 'Network' && (request.row.file || request.row.path || request.row.cwd),
+    !isObjectRead(request.row) &&
+      info.kind !== 'Network' &&
+      (request.row.file || request.row.path || request.row.cwd),
   );
 </script>
 
@@ -51,14 +54,17 @@
     {#if request.row.sensitive}<span class="badge sensitive">{$t('Sensitive')}</span>{/if}
   </div>
   <div class="recorded-resource">
-    <span>{$t('Full path / address')}</span>
-    <code>{info.path}</code>
+    <span>{$t(isObjectRead(request.row) ? 'Binding label' : 'Full path / address')}</span>
+    <code>{isObjectRead(request.row) ? observationLabel(request.row) : info.path}</code>
   </div>
   <div class="recorded-owner">
     <span>{$t('Agent / context')}</span>
     <ObservationIdentity row={request.row} agents={request.agents} />
   </div>
   <p class="recorded-explanation">{info.explanation}</p>
+  {#if isObjectRead(request.row)}<p class="recorded-explanation">
+      {$t(OBJECT_READ_EXPLANATION)}
+    </p>{/if}
   <p class="recorded-time">
     {observedAt ? new Date(observedAt).toLocaleString() : $t('Observation time not recorded')}
   </p>

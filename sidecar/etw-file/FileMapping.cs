@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Aegis.EtwLifecycle;
 
@@ -11,7 +12,12 @@ internal sealed record FileObservation(string eventSeq, string provider, int eve
     uint headerPid, uint headerTid, uint? issuingTid, uint? payloadTid, string? path, string pathEvidence,
     string issuerStatus = "candidate", string generationStatus = "unresolved", string? generationWitness = null,
     string? generationSource = null, object? generationInterval = null, object? agent = null, object? instanceId = null,
-    uint? issuerPid = null, object? issuerInterval = null);
+    uint? issuerPid = null, object? issuerInterval = null)
+{
+    [JsonIgnore] public ulong NativeObject { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public FileObjectCandidate? objectCandidate { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public FileObjectProof? objectProof { get; init; }
+}
 
 internal sealed class FileMapping(FileScope scope, long frequency, int cap = 32768, int byteCap = 8 * 1024 * 1024)
 {
@@ -82,7 +88,7 @@ internal sealed class FileMapping(FileScope scope, long frequency, int cap = 327
     private static FileObservation Make(FileInput value, string? path, string evidence) =>
         new(value.Seq.ToString(), FileCapture.Provider.ToString(), value.Id, value.Version, value.Qpc.ToString(),
             value.Pid, value.Tid, value.Issuing, value.Payload, path, evidence,
-            value.Pid is 0 or uint.MaxValue ? "unresolved" : "candidate");
+            value.Pid is 0 or uint.MaxValue ? "unresolved" : "candidate") { NativeObject = value.Object };
 }
 
 internal sealed class FileIngress(int cap = 4096, int byteCap = 4 * 1024 * 1024)

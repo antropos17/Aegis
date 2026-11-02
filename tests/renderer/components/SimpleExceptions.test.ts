@@ -4,13 +4,13 @@ import Details from '../../../frontend/observatory/components/Details.svelte';
 import FalsePositiveToggle from '../../../frontend/observatory/components/FalsePositiveToggle.svelte';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
 import { emptyTelemetry, type Host } from '../../../frontend/observatory/runtime/host';
-import type { FalsePositiveEntry, FileEvent } from '../../../src/shared/types';
+import type { FalsePositiveEntry, FileEvent, PathFileEvent } from '../../../src/shared/types';
 
 const file = 'C:/work/.env';
 const pattern = '^C:/work/\\.env$';
 const exact: FalsePositiveEntry = { agentName: 'Claude', pattern, timestamp: 1 };
 const other: FalsePositiveEntry = { agentName: 'Codex', pattern, timestamp: 2 };
-const observed = (timestamp: number, overrides: Partial<FileEvent> = {}): FileEvent => ({
+const observed = (timestamp: number, overrides: Partial<PathFileEvent> = {}): PathFileEvent => ({
   agent: 'Claude',
   pid: 42,
   instanceId: '42:start',

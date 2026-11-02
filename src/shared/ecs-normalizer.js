@@ -186,6 +186,21 @@ function _attribution(value) {
 function _shape(event, auditType) {
   /** @type {Record<string, unknown>} */
   const fields = {};
+  // An object label is never mapped to ECS file.path. The object-specific action
+  // permits explicit sequence rules while path matchers remain ineligible.
+  if (
+    event.observationKind === 'bound-object-read' ||
+    (auditType !== null &&
+      event.extra &&
+      typeof event.extra === 'object' &&
+      /** @type {Record<string,unknown>} */ (event.extra).boundObject)
+  ) {
+    return {
+      event: { kind: 'event', category: ['file'], type: ['access'], action: 'bound-object-read' },
+      timestamp: _iso(event.timestamp),
+      fields,
+    };
+  }
   if (auditType !== null) {
     const route = AUDIT_ROUTES.get(auditType);
     // A `network-connection` audit record yields NO `destination.*`: its `path` is the display
@@ -290,6 +305,27 @@ function normalizeToEcs(event) {
 
   /** @type {Record<string, unknown>} */
   const aegis = {};
+  const rawObject =
+    event.observationKind === 'bound-object-read'
+      ? event.object
+      : event.extra && typeof event.extra === 'object'
+        ? /** @type {Record<string,unknown>} */ (event.extra).boundObject
+        : null;
+  if (rawObject && typeof rawObject === 'object') {
+    const object = /** @type {Record<string,unknown>} */ (rawObject);
+    const key = _text(object.objectKey);
+    const policy =
+      object.policy && typeof object.policy === 'object'
+        ? /** @type {Record<string,unknown>} */ (object.policy)
+        : null;
+    if (key && policy && typeof policy.sensitive === 'boolean') {
+      aegis.bound_object = {
+        key,
+        sensitive: policy.sensitive,
+        classification: policy.classification,
+      };
+    }
+  }
   const agentName = _text(event.agent);
   if (agentName !== null) aegis.agent = { name: agentName };
   const attribution = _attribution(event.attribution);

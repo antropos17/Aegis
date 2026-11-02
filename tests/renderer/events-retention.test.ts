@@ -13,12 +13,12 @@ import {
   fileEventRetain,
   EVENTS_CAPACITY,
 } from '../../src/renderer/lib/stores/events-retention.js';
-import type { FileEvent } from '../../src/shared/types';
+import type { FileEvent, PathFileEvent } from '../../src/shared/types';
 
 const NOW = 1_754_380_000_000;
 
 /** One file event as the watcher emits it; `sensitive` defaults to false. */
-function fileEvent(over: Partial<FileEvent> & { id?: number } = {}): FileEvent {
+function fileEvent(over: Partial<PathFileEvent> & { id?: number } = {}): PathFileEvent {
   const { id = 0, ...rest } = over;
   return {
     agent: 'Claude Code',
@@ -99,9 +99,19 @@ describe('appendWithRetention', () => {
   it('mixed shortfall: every non-sensitive row goes first, then the oldest sensitive ones', () => {
     // s0 n1 s2 n3 s4 + batch s5 s6 → 7 rows into 3 slots: 4 evictions, only 2 non-sensitive
     // available, so the two OLDEST sensitive rows (s0, s2) go as well.
-    const prev = [sensitive(0), fileEvent({ id: 1 }), sensitive(2), fileEvent({ id: 3 }), sensitive(4)];
+    const prev = [
+      sensitive(0),
+      fileEvent({ id: 1 }),
+      sensitive(2),
+      fileEvent({ id: 3 }),
+      sensitive(4),
+    ];
     const r = appendWithRetention(prev, [sensitive(5), sensitive(6)], 3, fileEventRetain);
-    expect(r.next.map((e) => e.file)).toEqual([sensitive(4).file, sensitive(5).file, sensitive(6).file]);
+    expect(r.next.map((e) => e.file)).toEqual([
+      sensitive(4).file,
+      sensitive(5).file,
+      sensitive(6).file,
+    ]);
     expect(r).toMatchObject({ evicted: 4, retainedEvicted: 2 });
   });
 

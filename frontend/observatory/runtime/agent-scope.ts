@@ -1,5 +1,6 @@
 import { describeObservation } from '../../../src/shared/observation-display.js';
 import { record, type RecordData, type Telemetry } from './host';
+import { isObjectRead, objectReadMatchesProcess } from './object-read';
 
 export interface AgentScope {
   agent: string;
@@ -59,6 +60,7 @@ export function scopeEvidence(
     if (scope.instanceId)
       return (
         row.instanceId === scope.instanceId &&
+        (!isObjectRead(row) || agents.some((current) => objectReadMatchesProcess(row, current))) &&
         row.pid !== 0 &&
         row.instanceIdSource !== 'unknown' &&
         row.instanceIdSource !== 'synthetic'

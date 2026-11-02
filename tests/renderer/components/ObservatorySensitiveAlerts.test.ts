@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import type { FileEvent } from '../../../src/shared/types';
+import type { PathFileEvent } from '../../../src/shared/types';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
 import AgentWorkspace from '../../../frontend/observatory/components/AgentWorkspace.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
@@ -12,7 +12,7 @@ import {
 } from '../../../frontend/observatory/runtime/sensitive-alerts';
 import type { Host } from '../../../frontend/observatory/runtime/host';
 
-function event(id: number, overrides: Partial<FileEvent> = {}): FileEvent {
+function event(id: number, overrides: Partial<PathFileEvent> = {}): PathFileEvent {
   return {
     agent: 'Claude',
     pid: 42,

@@ -1,5 +1,6 @@
 import { record, type RecordData } from './host';
 import { observationEvidenceLabel } from '../../../src/shared/observation-display.js';
+import { isObjectRead, observationLabel } from './object-read';
 
 export interface InfoField {
   key: string;
@@ -147,6 +148,18 @@ export function selectFields(row: RecordData, keys: string[]): RecordData {
 export function evidenceFields(row: RecordData): RecordData {
   const attribution = record(row.attribution);
   return {
+    ...(isObjectRead(row)
+      ? {
+          'Binding label': observationLabel(row),
+          'Access path': 'Unknown',
+          'Object identity': record(row.object).objectKey,
+          'Binding identity': record(row.object).bindingId,
+          'Scope generation': record(row.object).scopeGeneration,
+          'Policy generation': record(row.object).policyGeneration,
+          'Object evidence': record(row.object).provenance,
+          'Bound policy': record(row.object).policy,
+        }
+      : {}),
     ...selectFields(row, [
       'source',
       'pid',

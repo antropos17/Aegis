@@ -2,6 +2,7 @@ import type { FalsePositiveEntry } from '../../../src/shared/types';
 import { matchesFalsePositive } from '../../../src/shared/false-positive-match.js';
 import type { Telemetry } from './host';
 import type { SensitiveAlert } from './sensitive-alerts';
+import { isObjectRead } from './object-read';
 
 /** Hold only bounded transient candidates until saved preferences have a known read outcome.
  * @param capacity Maximum pending candidates, aligned with the retained review capacity
@@ -26,7 +27,9 @@ export function createSensitivePresentation(capacity = 100): {
       pending = state === 'pending' ? candidates : [];
       return state === 'pending'
         ? []
-        : candidates.filter((item) => !matchesFalsePositive(item.event, patterns));
+        : candidates.filter(
+            (item) => isObjectRead(item.event) || !matchesFalsePositive(item.event, patterns),
+          );
     },
   };
 }

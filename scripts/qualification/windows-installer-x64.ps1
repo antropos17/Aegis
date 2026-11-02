@@ -189,7 +189,7 @@ finally {
         $report.cleanup.network=Invoke-UpdaterNetwork 'remove' $id $name $vmRoot
         if($report.cleanup.network.status -ne 'PASS') { throw ('Update network cleanup '+$report.cleanup.network.phase+': '+$report.cleanup.network.error) }
       }
-      foreach($path in @($iso,$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
+      foreach($path in @($iso,($iso+'.partial'),$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
         $full=[IO.Path]::GetFullPath($path)
         if(-not $full.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Cleanup escaped owned root' }
         if(Test-Path -LiteralPath $full) {

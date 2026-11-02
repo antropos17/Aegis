@@ -7,6 +7,54 @@ import { extractFile } from '@electron/asar';
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
 import { rebootIdentity } from './etw-reboot-contract.mjs';
 
+const archiveRefusals = new WeakMap();
+// electron-builder excludes declarations by default. This exact compiler-only
+// companion remains source-bound; its executable JS must still be byte-checked.
+const compilerOnlySources = new Map([
+  ['src/shared/instance-key.d.ts', 'src/shared/instance-key.js'],
+]);
+const buildRefusalCodes = new Map([
+  ['Expected source SHA required', 'source-sha-invalid'],
+  ['Expected source HEAD mismatch', 'source-head-mismatch'],
+  ['Clean source required', 'source-dirty'],
+  ['Builder configuration required', 'builder-config-required'],
+  ['Source file budget', 'source-file-budget'],
+  ['Compiler-only source requires its runtime companion', 'compiler-companion-required'],
+  ['Reviewed marked diagnostic package/config required', 'diagnostic-marker-refused'],
+  ['Builder Electron version mismatch', 'builder-electron-version-mismatch'],
+  ['Invalid current input binding', 'input-binding-invalid'],
+  ['Successful ordered bounded build commands required', 'build-command-evidence-invalid'],
+  ['Build inputs changed', 'build-input-drift'],
+  ['Invalid bounded JSON input', 'bounded-json-invalid'],
+  ['Invalid Electron version', 'installed-electron-version-invalid'],
+  ['Installed Electron version mismatch', 'installed-electron-version-mismatch'],
+]);
+const publicSourcePath = (file) =>
+  typeof file === 'string' &&
+  file.length <= 240 &&
+  /^src\/(?:main|shared)\/(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.(?:js|ts|json)$/.test(file) &&
+  !file.split('/').some((part) => part === '.' || part === '..');
+
+/** Return only closed failure codes and internally tagged public source names.
+ * Arbitrary errors, assertion operands, paths and source contents remain private.
+ * @param {unknown} error Actual build refusal. @returns {object} Bounded diagnostic.
+ * @since v0.20.1
+ */
+export function rebootBuildFailure(error) {
+  if (error instanceof Error) {
+    const tagged = archiveRefusals.get(error);
+    if (tagged) return { ...tagged };
+    for (const [message, code] of buildRefusalCodes)
+      if (
+        error.message === message ||
+        (error instanceof assert.AssertionError && error.message.startsWith(message + '\n'))
+      )
+        return { code };
+    if (error.code === 'ENOENT') return { code: 'build-input-unavailable' };
+  }
+  return { code: 'build-unclassified-refusal' };
+}
+
 /** Hash immutable receipt/package bytes. @param {Buffer|string} bytes
  * @returns {string} @since v0.19.2
  */
@@ -76,8 +124,8 @@ export function rebootBuildInputs(root, candidate, expectedHead, configFile, ver
     deps.git ??
     ((...args) =>
       execFileSync('git', args, { cwd: root, encoding: 'utf8', timeout: 20000 }).trim());
-  assert(/^[a-f0-9]{40}$/.test(expectedHead));
-  assert.equal(git('rev-parse', 'HEAD'), expectedHead);
+  assert(/^[a-f0-9]{40}$/.test(expectedHead), 'Expected source SHA required');
+  assert.equal(git('rev-parse', 'HEAD'), expectedHead, 'Expected source HEAD mismatch');
   assert.equal(
     git('status', '--porcelain', '--untracked-files=normal'),
     '',
@@ -102,11 +150,33 @@ export function rebootBuildInputs(root, candidate, expectedHead, configFile, ver
     assert(fs.lstatSync(source).size <= 2 * 1024 ** 2, 'Source file budget');
     const data = fs.readFileSync(source);
     all.push([file, rebootHash(data)]);
-    if (file.startsWith('src/')) {
-      assert(
-        data.equals(extractFile(archive, path.normalize(file))),
-        'Archived runtime source mismatch',
-      );
+    const companion = compilerOnlySources.get(file);
+    if (companion)
+      assert(files.includes(companion), 'Compiler-only source requires its runtime companion');
+    if (file.startsWith('src/') && !companion) {
+      let bytes;
+      try {
+        bytes = extractFile(archive, path.normalize(file));
+      } catch (error) {
+        if (error instanceof Error)
+          archiveRefusals.set(error, {
+            code:
+              error.message === `"${path.normalize(file)}" was not found in this archive`
+                ? 'archive-entry-missing'
+                : 'archive-read-refused',
+            ...(publicSourcePath(file) ? { source: file } : {}),
+          });
+        throw error;
+      }
+      try {
+        assert(data.equals(bytes), 'Archived runtime source mismatch');
+      } catch (error) {
+        archiveRefusals.set(error, {
+          code: 'archive-source-mismatch',
+          ...(publicSourcePath(file) ? { source: file } : {}),
+        });
+        throw error;
+      }
       archived.push([file, rebootHash(data)]);
     }
   }

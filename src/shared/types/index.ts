@@ -25,6 +25,10 @@ export type {
 export type {
   FileAction,
   FileEvent,
+  PathFileEvent,
+  BoundObjectReadEvent,
+  BoundReadObject,
+  BoundObjectPolicy,
   NetworkConnection,
   NetworkVerdict,
   DeviationWarningType,

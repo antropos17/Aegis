@@ -112,6 +112,9 @@ function ensureSessionData(instanceId, agentName) {
     sessionData[instanceId] = {
       agentName,
       files: new Set(),
+      objects: new Set(),
+      objectSensitiveCount: 0,
+      objectBirth100ns: null,
       sensitiveCount: 0,
       directories: new Set(),
       endpoints: new Set(),
@@ -139,6 +142,39 @@ function recordFileAccess(instanceId, agentName, filePath, isSensitive, reason) 
   }
   sd.directories.add(path.dirname(filePath));
   sd.activeHours.add(new Date().getHours());
+}
+
+/** Record pre-bound-object exposure separately from path/directory training.
+ * @param {Object} event Closed bound-object FileEvent.
+ * @returns {boolean} Whether an active exact instance received the observation.
+ * @since v0.20.1
+ */
+function recordBoundObjectRead(event) {
+  const { projectBoundReadObject, boundReadObjectKey } = require('../shared/bound-read-object');
+  if (event?.observationKind !== 'bound-object-read') return false;
+  const object = projectBoundReadObject(event.object);
+  if (!object) return false;
+  if (!canRecordBoundObjectRead(event.instanceId, event.createTime100ns)) return false;
+  const sd = ensureSessionData(event.instanceId, event.agent);
+  if (!sd) return false;
+  sd.objectBirth100ns = event.createTime100ns;
+  sd.objects.add(boundReadObjectKey(object));
+  if (object.policy.sensitive) sd.objectSensitiveCount++;
+  sd.lastActivityAt = Date.now();
+  return true;
+}
+
+/** A rounded canonical key may collide across two full Windows birth witnesses.
+ * Quarantine the second generation's object lane instead of sharing its baseline.
+ * @param {string} instanceId Carried canonical key.
+ * @param {string} birth Full issuer creation-time witness.
+ * @returns {boolean} Whether this bucket can accept that exact generation.
+ * @since v0.20.1
+ */
+function canRecordBoundObjectRead(instanceId, birth) {
+  if (!instanceId || typeof birth !== 'string' || !/^[1-9]\d{0,19}$/.test(birth)) return false;
+  const existing = sessionData[instanceId]?.objectBirth100ns;
+  return existing == null || existing === birth;
 }
 
 /**
@@ -193,7 +229,13 @@ function finalizeInstances(instances) {
     const sd = sessionData[instanceId];
     if (!sd) continue;
     delete sessionData[instanceId];
-    if (sd.files.size === 0 && sd.sensitiveCount === 0 && sd.endpoints.size === 0) continue;
+    if (
+      sd.files.size === 0 &&
+      sd.objects.size === 0 &&
+      sd.sensitiveCount === 0 &&
+      sd.endpoints.size === 0
+    )
+      continue;
     // The bucket is instance-keyed; the profile is name-keyed. A bucket with no
     // name has nowhere to land — it is dropped rather than filed under a guess.
     const agentName = sd.agentName;
@@ -213,10 +255,34 @@ function finalizeInstances(instances) {
       };
     }
     const ab = baselines.agents[agentName];
+    const endTime = Math.max(sd.startTime, sd.lastActivityAt || 0, lastSeen ?? Date.now());
+    // Object binding exposure has its own cohort. Object-only sessions must not
+    // create zero-valued path sessions or satisfy legacy anomaly training counts.
+    if (sd.objects.size > 0) {
+      ab.objectSessionCount = (ab.objectSessionCount || 0) + 1;
+      ab.objectSessions = [
+        ...(ab.objectSessions || []),
+        {
+          startTime: sd.startTime,
+          endTime,
+          totalObjects: sd.objects.size,
+          sensitiveObjects: sd.objectSensitiveCount,
+        },
+      ].slice(-MAX_BASELINE_SESSIONS);
+      ab.objectAverages = {
+        bindingsPerSession:
+          ab.objectSessions.reduce((sum, row) => sum + row.totalObjects, 0) /
+          ab.objectSessions.length,
+        sensitiveBindingsPerSession:
+          ab.objectSessions.reduce((sum, row) => sum + row.sensitiveObjects, 0) /
+          ab.objectSessions.length,
+      };
+    }
+    if (sd.files.size === 0 && sd.sensitiveCount === 0 && sd.endpoints.size === 0) continue;
     ab.sessionCount++;
     ab.sessions.push({
       startTime: sd.startTime,
-      endTime: Math.max(sd.startTime, sd.lastActivityAt || 0, lastSeen ?? Date.now()),
+      endTime,
       totalFiles: sd.files.size,
       sensitiveFiles: sd.sensitiveCount,
       directories: [...sd.directories],
@@ -250,6 +316,8 @@ module.exports = {
   loadBaselines,
   ensureSessionData,
   recordFileAccess,
+  recordBoundObjectRead,
+  canRecordBoundObjectRead,
   recordNetworkEndpoint,
   recomputeAverages,
   finalizeSession,

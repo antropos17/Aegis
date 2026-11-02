@@ -8,9 +8,18 @@ to four parent links, with separate actor identities; the same evidence
 document defines its freshness limits and low severity cap. The original generic
 engine contract below still describes rules without either extension.
 
+**2026-10-24 object-policy preparation:** SEQ004 separately matches an acknowledged
+pre-bound sensitive object read followed by a confirmed TCP observation from the
+same process instance. Its object label is not an observed access path; path rules
+and path exceptions do not consume it. The read uses its bounded calibrated
+capture time. Earlier-delivered TCP snapshots are not replayed after delayed native
+admission, so this remains a conservative temporal correlation with incomplete
+coverage. File contents and transferred data remain unobserved. Native acceptance
+and Windows build qualification are recorded separately from this source change.
+
 **Status (as of 2026-08-25):** Block 1 implemented. `src/main/sequence-rule-loader.js`,
 `tests/main/sequence-rule-loader.test.js`, `tests/fixtures/sequences/`,
-`rules/sequences/sequences.yaml` (3 sequence correlation rules, SEQ001, SEQ002 and SEQ003, in 1 sequence rule file),
+`rules/sequences/sequences.yaml` (4 sequence correlation rules, SEQ001, SEQ002, SEQ003 and SEQ004, in 1 sequence rule file),
 `tests/main/sequence-rules-parity.test.js` and the `sequences.*` counters in `scripts/counts.js`
 now exist and are green, and so do `src/main/sequence-engine.js` and
 `tests/main/sequence-engine.test.js` — the §2 state machine with the §3 caps and counters, the

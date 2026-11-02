@@ -2,6 +2,7 @@ import type { Telemetry } from './host';
 import type { RadarGroup } from './radar';
 import { isScopedProcess } from './agent-scope';
 import { canonicalObservationPath } from '../../../src/shared/observation-display.js';
+import { isObjectRead, objectReadMatchesProcess, objectResourceKey } from './object-read';
 
 export interface RadarConnection {
   key: string;
@@ -29,14 +30,15 @@ export function radarConnections(state: Telemetry, plotted: RadarGroup[]): Radar
     const agent = matches[0];
     if (
       !isScopedProcess(agent) ||
+      !objectReadMatchesProcess(event, agent) ||
       agent.pid !== event.pid ||
       agent.agent !== event.agent ||
       !visible.has(agent.agent)
     )
       continue;
     const path = typeof event.file === 'string' ? event.file.trim() : '';
-    if (!path) continue;
-    const key = canonicalObservationPath(path);
+    const key = isObjectRead(event) ? objectResourceKey(event) : canonicalObservationPath(path);
+    if (!key) continue;
     const products = owners.get(key) ?? new Set<string>();
     products.add(agent.agent);
     owners.set(key, products);

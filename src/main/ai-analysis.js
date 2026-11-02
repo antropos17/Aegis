@@ -14,6 +14,18 @@
 
 const https = require('https');
 const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
+const { projectBoundReadObject } = require('../shared/bound-read-object');
+
+/** A binding label cannot describe the pathname used by an observed read.
+ * @param {Object} event File observation.
+ * @returns {string} Object-source wording or observed legacy path.
+ * @since v0.20.1
+ */
+function observationTarget(event) {
+  if (event.observationKind !== 'bound-object-read') return event.file;
+  const object = projectBoundReadObject(event.object);
+  return `Bound object; binding label (access path unknown): ${object?.label ?? 'Unavailable'}`;
+}
 
 /** Max allowed lengths for untrusted fields */
 const FIELD_LIMITS = { agentName: 256, path: 1024, reason: 512 };
@@ -255,7 +267,7 @@ function analyzeAgentActivity(selection) {
       sensitiveEvents
         .map(
           (e) =>
-            `  - ${sanitizeField(e.file, FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)}, ${e.action})`,
+            `  - ${sanitizeField(observationTarget(e), FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)}, ${e.action})`,
         )
         .join('\n') || '  (none)';
     const netList =
@@ -423,7 +435,7 @@ function analyzeSessionActivity() {
         .slice(-30)
         .map(
           (e) =>
-            `  - [${sanitizeField(e.agent || UNKNOWN_SOURCE_LABEL, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(e.file, FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
+            `  - [${sanitizeField(e.agent || UNKNOWN_SOURCE_LABEL, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(observationTarget(e), FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
         )
         .join('\n') || '  (none)';
     const configDetails =
@@ -431,7 +443,7 @@ function analyzeSessionActivity() {
         .slice(-20)
         .map(
           (e) =>
-            `  - [${sanitizeField(e.agent || UNKNOWN_SOURCE_LABEL, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(e.file, FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
+            `  - [${sanitizeField(e.agent || UNKNOWN_SOURCE_LABEL, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(observationTarget(e), FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
         )
         .join('\n') || '  (none)';
     const netDetails =

@@ -61,7 +61,7 @@ function Remove-CloudGuestClosedFiles([string]$Root, [string]$RunId, [string]$At
             if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-path-invalid' }
             $cursor = $cursor.Parent
         }
-        $leaves = @(@{ id = 'answerIso'; path = 'media\answer.iso' }, @{ id = 'answerXml'; path = 'media\answer\Autounattend.xml' }, @{ id = 'windowsIso'; path = 'media\windows.iso' })
+        $leaves = @(@{ id = 'answerIso'; path = 'media\answer.iso' }, @{ id = 'answerXml'; path = 'media\answer\Autounattend.xml' }, @{ id = 'windowsIso'; path = 'media\windows.iso' }, @{ id = 'windowsIsoPartial'; path = 'media\windows.iso.partial' })
         if (!$neverCreated) { $leaves = @(@{ id = 'guestVhd'; path = 'vm\guest.vhdx' }) + $leaves }
         # Validate the entire finite set before any deletion, including ancestors.
         function Read-ClosedItem([string]$Path) {
@@ -366,7 +366,9 @@ try {
         $report['mediaDownload'] = @{ schemaVersion = 1; phase = $mediaObservation.Phase.ToString(); responseStatusCode = $mediaObservation.ResponseStatusCode;
             expectedBytes = $mediaObservation.ExpectedBytes; declaredBytes = $mediaObservation.DeclaredBytes; bytesRead = $mediaObservation.BytesRead; bytesWritten = $mediaObservation.BytesWritten;
             readCalls = $mediaObservation.ReadCalls; elapsedMilliseconds = $mediaObservation.ElapsedMilliseconds; lastReadMilliseconds = $mediaObservation.LastReadMilliseconds;
-            lastWriteMilliseconds = $mediaObservation.LastWriteMilliseconds; deadlineExpired = $mediaObservation.DeadlineExpired }
+            lastWriteMilliseconds = $mediaObservation.LastWriteMilliseconds; deadlineExpired = $mediaObservation.DeadlineExpired;
+            requestCount = $mediaObservation.RequestCount; resumeRequests = $mediaObservation.ResumeRequests; transientFailures = $mediaObservation.TransientFailures;
+            integrityVerified = $mediaObservation.IntegrityVerified; promoted = $mediaObservation.Promoted }
     }
     $metadata = Stage 'read-only-exact-wim-metadata' {
         Mount-DiskImage -ImagePath $windowsIso -Access ReadOnly -PassThru | Out-Null; $script:mounted = $true

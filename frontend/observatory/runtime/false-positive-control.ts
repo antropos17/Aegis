@@ -2,6 +2,7 @@ import type { FalsePositiveEntry } from '../../../src/shared/types';
 import { matchesFalsePositive } from '../../../src/shared/false-positive-match.js';
 import { confirmed, invoke, record, type Host, type RecordData } from './host';
 import { falsePositivePopulation } from './false-positive-population';
+import { isObjectRead } from './object-read';
 
 export interface ExactExceptionTarget {
   readonly agentName: string;
@@ -21,6 +22,7 @@ const writes = new WeakMap<Host, Promise<unknown>>();
  */
 export function exactExceptionTarget(row: RecordData): ExactExceptionTarget | null {
   if (
+    isObjectRead(row) ||
     typeof row.agent !== 'string' ||
     !row.agent ||
     typeof row.file !== 'string' ||

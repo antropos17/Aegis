@@ -7,6 +7,84 @@ import {
   observationGroupEvidence,
 } from '../../src/shared/observation-display.js';
 
+const boundRead = (object = {}) => ({
+  observationKind: 'bound-object-read',
+  agent: 'Codex',
+  action: 'accessed',
+  attribution: { status: 'confirmed', evidence: ['etw-file-object'] },
+  object: {
+    objectKey: 'opaque-object-A',
+    bindingId: 'lease-A',
+    scopeGeneration: 'scope-A',
+    policyGeneration: 'policy-A',
+    label: 'C:/fixture/.codex/skills/review/SKILL.md',
+    ...object,
+  },
+});
+
+it('keeps bound object labels out of observed paths, skills and inferred resource context', () => {
+  const row = boundRead();
+  const original = structuredClone(row);
+  const info = describeObservation({ ...row, file: row.object.label, path: row.object.label });
+  expect(info).toMatchObject({
+    kind: 'File',
+    path: '',
+    context: '',
+    resource: row.object.label,
+    actor: 'Codex',
+  });
+  expect(info.skill).toBeFalsy();
+  expect(info.explanation).toContain('kernel recorded a read of a pre-bound object');
+  expect(row).toEqual(original);
+});
+
+it('groups bound reads by object and policy scope rather than by labels, access paths or lease IDs', () => {
+  const first = boundRead();
+  const anotherLease = boundRead({ bindingId: 'lease-B', label: 'renamed label' });
+  const otherObject = boundRead({ objectKey: 'opaque-object-B' });
+  const otherScope = boundRead({ scopeGeneration: 'scope-B' });
+  const otherPolicy = boundRead({ policyGeneration: 'policy-B' });
+  const sameNamedPath = { agent: 'Codex', file: first.object.label };
+  const groups = groupObservations([
+    first,
+    anotherLease,
+    otherObject,
+    otherScope,
+    otherPolicy,
+    sameNamedPath,
+  ]);
+  expect(groups).toHaveLength(5);
+  expect(groups.find((group) => group.rows.includes(first)).rows).toEqual([first, anotherLease]);
+  expect(
+    groupObservations([
+      { ...first, object: {} },
+      { ...first, object: {} },
+    ]),
+  ).toHaveLength(2);
+});
+
+it('does not fill a missing object actor from a different birth sharing the carried instance ID', () => {
+  const event = {
+    ...boundRead(),
+    agent: '',
+    pid: 71,
+    instanceId: '71:1755526400000',
+    createTime100ns: '134000000000001111',
+  };
+  const current = {
+    agent: 'Codex',
+    pid: 71,
+    instanceId: event.instanceId,
+    instanceIdSource: 'os',
+    createTime100ns: '134000000000001112',
+  };
+  expect(describeObservation(event, [current]).actor).toBe('');
+  expect(
+    describeObservation(event, [{ ...current, createTime100ns: event.createTime100ns }]).actor,
+  ).toBe('Codex');
+  expect(describeObservation({ ...event, createTime100ns: undefined }, [current]).actor).toBe('');
+});
+
 describe('observation presentation', () => {
   it('names Codex skills without turning the path into actor or execution proof', () => {
     const row = {

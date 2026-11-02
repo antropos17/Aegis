@@ -6,6 +6,10 @@ export const WINDOWS_SUITES = [
   'tests/main/sealed-import-windows.test.js',
   'tests/main/result-review-sealed-import.test.js',
   'tests/main/protected-gui-process-windows.test.js',
+  'tests/main/platform/etw-guard-startup.test.js',
+  'tests/main/platform/etw-guard-choreography.test.js',
+  'tests/main/platform/etw-broker-startup.test.js',
+  'tests/main/etw-read-fixture-pacing-native.test.js',
 ];
 
 const STAGE_PHASES = new Set([

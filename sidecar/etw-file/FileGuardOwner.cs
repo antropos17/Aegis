@@ -27,29 +27,100 @@ internal sealed class FileGuardOwner : IAsyncDisposable
         var info = Program.Child(primary == null ? "guard" : "fallback", id, self.Pid.ToString(), self.Birth.ToString(),
             recoveryPipe, broker.Id.ToString(), brokerBirth.ToString(), diagnosticMode);
         info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = false;
+        bool checkpoints = primary == null && FileQualificationDiagnostic.CollectorEnabled && FileQualificationDiagnostic.Enabled;
+        if (checkpoints) info.Environment[FileQualificationDiagnostic.GuardVariable] = "1";
         var child = Process.Start(info) ?? throw new InvalidOperationException();
         var owner = new FileGuardOwner(pipe, child);
         owner.fallback = primary != null;
+        using var watch = new CancellationTokenSource();
+        string? lastCheckpoint = null;
         try
         {
             using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            using var startup = new FileGuardStartup(child.WaitForExitAsync(watch.Token), () => child.ExitCode, limit.Token);
+            string phase = primary == null ? "guard" : "fallback";
+            FileQualificationDiagnostic.Stage(phase + "-connect");
             var identity = Security.Observe(child);
-            await pipe.WaitForConnectionAsync(limit.Token);
+            await startup.Wait(token => pipe.WaitForConnectionAsync(token));
             Security.Verify(pipe, child, identity.Birth, true, true);
             owner.Identity = new FileGuardHello(child.Id, identity.Birth.ToString(), reservation);
-            await FileGuardWire.Write(data, owner.Identity, limit.Token);
-            var ack = await FileGuardWire.Read<FileGuardCommand>(data, limit.Token);
-            if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
+            FileQualificationDiagnostic.Stage(phase + "-broker");
             if (primary == null)
-                await FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), limit.Token);
+            {
+                // The unarmed GUID reservation uses a different pipe. Queue it
+                // before broker authentication completes so its reply can progress
+                // within the same eight-second startup deadline, not after it.
+                var reserve = ReservePrimary(startup, pipe, reservation, checkpoints, value => lastCheckpoint = value);
+                ObserveFailure(reserve);
+                var connected = ConnectBroker(startup, data, owner.Identity);
+                ObserveFailure(connected);
+                var first = await Task.WhenAny(reserve, connected);
+                FileQualificationDiagnostic.Stage(phase + (first == reserve ? "-reserve" : "-broker"));
+                await first;
+                FileQualificationDiagnostic.Stage(phase + (first == reserve ? "-broker" : "-reserve"));
+                await (first == reserve ? connected : reserve);
+            }
             else
-                await FileGuardWire.Write(pipe, new FileFallbackReservation(reservation, primary.pid, primary.birth), limit.Token);
-            var reserved = await FileGuardWire.Read<FileGuardCommand>(pipe, limit.Token);
-            if (reserved.kind != "reserved" || reserved.handle != null || reserved.guid != null || !owner.Alive)
-                throw new InvalidDataException();
+            {
+                // Fallback reservation can deliberately exit the peer. Keep it
+                // after ACK2 and the broker's original-process handle deposit.
+                await ConnectBroker(startup, data, owner.Identity);
+                FileQualificationDiagnostic.Stage(phase + "-reserve");
+                await startup.Wait(token => FileGuardWire.Write(pipe, new FileFallbackReservation(reservation, primary.pid, primary.birth), token));
+                await ReadReserved(startup, pipe);
+            }
+            limit.Token.ThrowIfCancellationRequested();
+            if (!owner.Alive) throw new FileGuardPeerExitedException(child.ExitCode);
             return owner;
         }
-        catch { await owner.DisposeAsync(); throw; }
+        catch
+        {
+            if (lastCheckpoint != null) FileQualificationDiagnostic.Stage(lastCheckpoint);
+            // Capture cannot start before this returns. Close the failed channel and
+            // release our reference; waiting here would stall the collector's exit
+            // while the guard itself waits for that exit before recovery/reporting.
+            watch.Cancel(); pipe.Dispose(); child.Dispose();
+            throw;
+        }
+        finally { watch.Cancel(); }
+    }
+    private static async Task ConnectBroker(FileGuardStartup startup, Stream data, FileGuardHello identity)
+    {
+        await startup.Wait(token => FileGuardWire.Write(data, identity, token));
+        var ack = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(data, token));
+        if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
+    }
+    private static async Task ReservePrimary(FileGuardStartup startup, Stream pipe, string reservation,
+        bool checkpoints, Action<string> progress)
+    {
+        await startup.Wait(token => FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), token));
+        await ReadReserved(startup, pipe, checkpoints, progress);
+    }
+    private static async Task ReadReserved(FileGuardStartup startup, Stream pipe, bool checkpoints = false,
+        Action<string>? progress = null)
+    {
+        string[] expected = ["guard-owner-verified", "guard-broker-connected", "guard-broker-verified"];
+        int observed = 0;
+        while (true)
+        {
+            var reserved = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(pipe, token));
+            if (reserved.handle != null || reserved.guid != null) throw new InvalidDataException();
+            if (reserved.kind == "reserved")
+            {
+                if (checkpoints && observed != expected.Length) throw new InvalidDataException();
+                return;
+            }
+            if (!checkpoints || observed >= expected.Length || reserved.kind != expected[observed++])
+                throw new InvalidDataException();
+            progress?.Invoke(reserved.kind);
+        }
+    }
+    private static void ObserveFailure(Task task)
+    {
+        // If the other exchange fails first, startup disposal cancels this one.
+        // Observe its wrapper task too, without waiting beyond the shared limit.
+        _ = task.ContinueWith(static failed => { _ = failed.Exception; }, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
     internal async Task Arm(FileTraceToken token)
     {

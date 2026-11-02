@@ -69,3 +69,39 @@ correlation:
   group-by:
     - process.entity_id
   timespan: 5m
+---
+title: Read of an object bound as sensitive before eligibility
+name: sensitive_bound_object_read
+logsource:
+  product: aegis
+  category: file
+detection:
+  selection:
+    event.action: bound-object-read
+    aegis.bound_object.sensitive: true
+    aegis.attribution.status: confirmed
+  condition: selection
+---
+title: Confirmed TCP observation
+name: confirmed_tcp_observation
+logsource:
+  product: aegis
+  category: network
+detection:
+  selection:
+    network.transport: tcp
+    aegis.attribution.status: confirmed
+  condition: selection
+---
+title: Pre-bound sensitive object read followed by confirmed TCP observation
+id: SEQ004
+level: low
+evidence-policy: credential-egress-v1
+correlation:
+  type: temporal_ordered
+  rules:
+    - sensitive_bound_object_read
+    - confirmed_tcp_observation
+  group-by:
+    - process.entity_id
+  timespan: 5m

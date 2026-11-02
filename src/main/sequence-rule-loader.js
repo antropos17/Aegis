@@ -131,6 +131,9 @@ const CATEGORY_FIELDS = {
     'process.pid',
     'aegis.agent.name',
     'aegis.attribution.status',
+    'aegis.bound_object.key',
+    'aegis.bound_object.sensitive',
+    'aegis.bound_object.classification',
   ]),
   network: new Set([
     'network.transport',
@@ -139,6 +142,7 @@ const CATEGORY_FIELDS = {
     'destination.domain',
     'process.working_directory',
     'aegis.agent.name',
+    'aegis.attribution.status',
   ]),
   process: new Set(['event.action', 'process.name', 'process.pid', 'aegis.agent.name']),
 };
@@ -156,6 +160,7 @@ const CATEGORY_ACTIONS = {
     'file-deleted',
     'file-accessed',
     'file-handle-held',
+    'bound-object-read',
   ]),
   process: new Set(['agent-enter', 'agent-exit']),
 };

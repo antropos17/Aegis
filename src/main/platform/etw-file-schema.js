@@ -54,6 +54,13 @@ const shape = (fields) => (v) =>
   !Array.isArray(v) &&
   Object.keys(v).length === Object.keys(fields).length &&
   Object.entries(fields).every(([key, test]) => Object.hasOwn(v, key) && test(v[key]));
+const optionalShape = (required, optional) => (v) =>
+  v !== null &&
+  typeof v === 'object' &&
+  !Array.isArray(v) &&
+  Object.keys(v).every((key) => Object.hasOwn(required, key) || Object.hasOwn(optional, key)) &&
+  Object.entries(required).every(([key, test]) => Object.hasOwn(v, key) && test(v[key])) &&
+  Object.entries(optional).every(([key, test]) => !Object.hasOwn(v, key) || test(v[key]));
 const clock = shape({ qpc: uint64, unixMs: uint64, uncertaintyQpc: uint64 });
 const interval = shape({ fromQpc: uint64, toQpc: uint64 });
 const intervalOrdered = (v) => interval(v) && BigInt(v.fromQpc) <= BigInt(v.toQpc);
@@ -197,39 +204,88 @@ const telemetry = (v) =>
   BigInt(v.totals.ingressDropped) + BigInt(v.totals.outputDropped) === BigInt(v.totals.dropped) &&
   BigInt(v.totals.outputOverflowDropped) + BigInt(v.totals.outputInvalidatedDropped) ===
     BigInt(v.totals.outputDropped);
-const observationShape = shape({
-  eventSeq: positive64,
-  provider: oneOf('edd08927-9cc4-4e65-b970-c2560fb5c289'),
-  eventId: uint32,
-  version: uint32,
-  qpc: uint64,
-  headerPid: uint32,
-  headerTid: uint32,
-  issuingTid: nullable(uint32),
-  payloadTid: nullable(uint32),
-  path: nullable(text(32 * 1024)),
-  pathEvidence: oneOf(
-    'observed-name',
-    'candidate-object',
-    'candidate-key',
-    'conflict',
-    'unresolved',
-  ),
-  issuerStatus: oneOf('candidate', 'unresolved', 'verified'),
-  issuerPid: nullable(uint32),
-  issuerInterval: nullable(intervalOrdered),
-  generationStatus: oneOf('candidate', 'unresolved', 'verified'),
-  generationWitness: nullable(positive64),
-  generationSource: nullable(oneOf('createTime100ns', 'sequence')),
-  generationInterval: nullable(intervalOrdered),
-  agent: oneOf(null),
-  instanceId: oneOf(null),
+const objectCandidate = shape({
+  bindingId: id,
+  issuerPid: (v) => uint32(v) && v > 0 && v < 0xffffffff,
+  createTime100ns: positive64,
+  label: text(32768),
+  volumeSerial: uint64,
+  fileId128: (v) => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v) && v !== '0'.repeat(32),
+  fromQpc: uint64,
 });
+const objectProof = shape({
+  source: oneOf('issuer-handle-file-id'),
+  labelSemantics: oneOf('pre-read-object-binding'),
+  bindingId: id,
+  scopeGeneration: id,
+  policyGeneration: id,
+  volumeSerial: uint64,
+  fileId128: (v) => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v) && v !== '0'.repeat(32),
+  path: text(32768),
+  fromQpc: uint64,
+  toQpc: uint64,
+  clock,
+});
+const objectBind = shape({
+  requestId: id,
+  bindingId: id,
+  scopeGeneration: id,
+  policyGeneration: id,
+});
+const objectBound = (v) =>
+  shape({
+    requestId: id,
+    bindingId: id,
+    scopeGeneration: id,
+    policyGeneration: id,
+    accepted: oneOf(true, false),
+    fromQpc: nullable(uint64),
+  })(v) && v.accepted === (v.fromQpc !== null);
+const observationShape = optionalShape(
+  {
+    eventSeq: positive64,
+    provider: oneOf('edd08927-9cc4-4e65-b970-c2560fb5c289'),
+    eventId: uint32,
+    version: uint32,
+    qpc: uint64,
+    headerPid: uint32,
+    headerTid: uint32,
+    issuingTid: nullable(uint32),
+    payloadTid: nullable(uint32),
+    path: nullable(text(32 * 1024)),
+    pathEvidence: oneOf(
+      'observed-name',
+      'candidate-object',
+      'candidate-key',
+      'conflict',
+      'unresolved',
+    ),
+    issuerStatus: oneOf('candidate', 'unresolved', 'verified'),
+    issuerPid: nullable(uint32),
+    issuerInterval: nullable(intervalOrdered),
+    generationStatus: oneOf('candidate', 'unresolved', 'verified'),
+    generationWitness: nullable(positive64),
+    generationSource: nullable(oneOf('createTime100ns', 'sequence')),
+    generationInterval: nullable(intervalOrdered),
+    agent: oneOf(null),
+    instanceId: oneOf(null),
+  },
+  { objectCandidate, objectProof },
+);
 /** Validate one complete native observation without accepting extra fields.
  * @param {unknown} v Candidate record. @returns {boolean} Validity. @since v0.19.2
  */
 const observation = (v) =>
   observationShape(v) &&
+  (!Object.hasOwn(v, 'objectCandidate') ||
+    (v.issuerStatus === 'verified' &&
+      v.objectCandidate.issuerPid === v.issuerPid &&
+      v.objectCandidate.createTime100ns === v.generationWitness)) &&
+  (!Object.hasOwn(v, 'objectProof') ||
+    (v.issuerStatus === 'verified' &&
+      BigInt(v.objectProof.fromQpc) < BigInt(v.qpc) &&
+      BigInt(v.qpc) <= BigInt(v.objectProof.toQpc) &&
+      BigInt(v.objectProof.toQpc) <= BigInt(v.objectProof.clock.qpc))) &&
   SCHEMAS.includes(`${v.eventId}:${v.version}`) &&
   (v.path === null) === ['conflict', 'unresolved'].includes(v.pathEvidence) &&
   (v.pathEvidence !== 'observed-name' || [10, 12].includes(v.eventId)) &&
@@ -258,14 +314,20 @@ const messageData = {
     profile: oneOf(PROFILE),
     schemas: unique(oneOf(...SCHEMAS), 5),
   }),
-  start: shape({ requestId: id, profile: oneOf(PROFILE), buffersMiB: oneOf(16) }),
-  ready: shape({
-    requestId: id,
-    frequency: positive64,
-    clock,
-    buffers: shape({ count: uint32, sizeKiB: uint32 }),
-    telemetry,
-  }),
+  start: optionalShape(
+    { requestId: id, profile: oneOf(PROFILE), buffersMiB: oneOf(16) },
+    { objectPolicy: oneOf(true) },
+  ),
+  ready: optionalShape(
+    {
+      requestId: id,
+      frequency: positive64,
+      clock,
+      buffers: shape({ count: uint32, sizeKiB: uint32 }),
+      telemetry,
+    },
+    { objectBridge: nullable(oneOf('win11-x64-26300.9457-experimental')) },
+  ),
   observations: shape({ records: array(observation, 128) }),
   health: telemetry,
   heartbeat: telemetry,
@@ -273,6 +335,8 @@ const messageData = {
   ping: shape({}),
   'prime-issuers': shape({ requestId: id, issuers: issuerList }),
   'issuers-primed': preparation,
+  'bind-object-policy': objectBind,
+  'object-policy-bound': objectBound,
   escrow: validMainLease,
   'escrow-ack': shape({}),
   'consent-ack': shape({}),

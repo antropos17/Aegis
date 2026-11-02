@@ -416,7 +416,7 @@ describe('attribution evidence is a closed list (case 8)', () => {
     fileWatcher._resetForTest();
   });
 
-  it('exposes exactly the nine documented codes', () => {
+  it('exposes exactly the documented closed codes', () => {
     // The list is closed on purpose and deriveStatus throws on anything outside it, so this
     // assertion is the gate: adding a code means deciding its status here, in events.ts, and
     // in PID_EVIDENCE/HEURISTIC_EVIDENCE — not just at a call site.
@@ -424,6 +424,7 @@ describe('attribution evidence is a closed list (case 8)', () => {
       'rm-holder-pid',
       'handle-scan-pid',
       'os-tcp-owner-pid',
+      'etw-file-object',
       'self-config-path',
       'cwd-containment',
       'no-owner-match',
@@ -437,6 +438,11 @@ describe('attribution evidence is a closed list (case 8)', () => {
     // It must never read as PID proof or as a heuristic match: nothing was matched,
     // and the reason is that there was no trustworthy list to match against.
     expect(deriveStatus(['population-unavailable'])).toBe('unattributed');
+  });
+
+  it('keeps native object evidence PID-backed and ambiguous ownership negative', () => {
+    expect(deriveStatus(['etw-file-object'])).toBe('confirmed');
+    expect(deriveStatus(['ambiguous-owner-match'])).toBe('unattributed');
   });
 
   it('the typed AttributionEvidence union mirrors EVIDENCE_CODES exactly', () => {

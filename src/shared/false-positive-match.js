@@ -9,6 +9,7 @@
 function matchesFalsePositive(event, entries) {
   if (!event || typeof event !== 'object' || Array.isArray(event) || !Array.isArray(entries))
     return false;
+  if (event.observationKind === 'bound-object-read') return false;
   if (
     typeof event.agent !== 'string' ||
     !event.agent ||

@@ -169,12 +169,21 @@ public static class NtSnapshot {
         int size = Query();
         StringBuilder sb = new StringBuilder(96 * 1024);
         sb.Append("{\"t\":\"snap\",\"id\":").Append(id).Append(",\"source\":\"class5\",\"procs\":[");
+        AppendProcesses(sb, _buffer, size);
+        watch.Stop();
+        LastDurationUs = watch.ElapsedTicks * 1000000L / Stopwatch.Frequency;
+        sb.Append("],\"us\":").Append(LastDurationUs).Append('}');
+        return sb.ToString();
+    }
+
+    /// <summary>Walk the fresh buffer used by SnapshotJson and structural controls.</summary>
+    internal static void AppendProcesses(StringBuilder sb, IntPtr buffer, int size) {
         long offset = 0;
         int seen = 0;
         bool first = true;
         while (true) {
-            if (offset + EntrySize > size) break;
-            IntPtr entry = new IntPtr(_buffer.ToInt64() + offset);
+            if (offset + EntrySize > size) throw new InvalidOperationException("snapshot-entry-bounds");
+            IntPtr entry = new IntPtr(buffer.ToInt64() + offset);
             long pid = Marshal.ReadIntPtr(entry, OffUniquePid).ToInt64();
             if (pid > 0) {
                 long ppid = Marshal.ReadIntPtr(entry, OffParentPid).ToInt64();
@@ -191,14 +200,12 @@ public static class NtSnapshot {
                 sb.Append('}');
             }
             seen++;
-            if (seen > MaxEntries) break;
+            if (seen > MaxEntries) throw new InvalidOperationException("snapshot-chain-limit");
             int next = Marshal.ReadInt32(entry, OffNextEntry);
-            if (next <= 0) break;
+            if (next == 0) break;
+            if (next < 0) throw new InvalidOperationException("snapshot-negative-offset");
+            if (next < EntrySize) throw new InvalidOperationException("snapshot-overlapping-offset");
             offset += next;
         }
-        watch.Stop();
-        LastDurationUs = watch.ElapsedTicks * 1000000L / Stopwatch.Frequency;
-        sb.Append("],\"us\":").Append(LastDurationUs).Append('}');
-        return sb.ToString();
     }
 }

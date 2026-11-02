@@ -11,7 +11,7 @@ import { processCoreSources } from '../../tests/fixtures/protected-gui-process/h
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
 import { prepareEtwPackage } from './etw-package.mjs';
 import { qualifyEtw } from './etw-qualification.mjs';
-import { writeRebootBuild } from './etw-reboot-support.mjs';
+import { writeRebootBuild, rebootBuildFailure } from './etw-reboot-support.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { values } = parseArgs({
@@ -392,6 +392,7 @@ try {
     message: etwBuildOnly
       ? 'Bounded diagnostic build failed; inspect private evidence'
       : error.message,
+    ...(etwBuildOnly ? { diagnostic: rebootBuildFailure(error) } : {}),
   };
   process.exitCode = 1;
 } finally {
@@ -405,6 +406,11 @@ try {
     flag: 'wx',
   });
   console.log(
-    JSON.stringify({ status: receipt.status, phase, receipt: path.join(evidence, 'receipt.json') }),
+    JSON.stringify({
+      status: receipt.status,
+      phase,
+      receipt: path.join(evidence, 'receipt.json'),
+      ...(etwBuildOnly && receipt.failure ? { failureCode: receipt.failure.diagnostic.code } : {}),
+    }),
   );
 }

@@ -54,6 +54,10 @@ export interface SessionData {
    */
   readonly agentName: string;
   readonly files: Set<string>;
+  /** Separate object-policy evidence, excluded from path/directory training. */
+  readonly objects?: Set<string>;
+  objectSensitiveCount?: number;
+  readonly objectBirth100ns?: string | null;
   sensitiveCount: number;
   readonly directories: Set<string>;
   readonly endpoints: Set<string>;
@@ -67,6 +71,8 @@ export interface SessionSnapshot {
   readonly startTime: number;
   readonly endTime: number;
   readonly totalFiles: number;
+  readonly totalObjects?: number;
+  readonly sensitiveObjects?: number;
   readonly sensitiveFiles: number;
   readonly directories: readonly string[];
   readonly networkEndpoints: readonly string[];
@@ -89,6 +95,15 @@ export interface AgentBaseline {
   sessionCount: number;
   sessions: SessionSnapshot[];
   averages: BaselineAverages;
+  /** Separate pre-bound object cohort; does not train legacy path anomalies. */
+  objectSessionCount?: number;
+  objectSessions?: Array<{
+    startTime: number;
+    endTime: number;
+    totalObjects: number;
+    sensitiveObjects: number;
+  }>;
+  objectAverages?: { bindingsPerSession: number; sensitiveBindingsPerSession: number };
 }
 
 /** Top-level baselines structure */

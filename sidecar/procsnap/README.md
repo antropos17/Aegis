@@ -88,6 +88,20 @@ its image name must be non-empty, and the `NextEntryOffset` chain must terminate
 inside the returned length. If any check fails the process exits with status 2 and a
 stderr line, and AEGIS falls back to CIM. It never emits numbers it cannot vouch for.
 
+Every later snapshot also requires a complete entry chain. A truncated entry,
+negative or overlapping next offset, or chain beyond the existing entry limit produces the
+existing `snapshot-failed` response. The accumulated prefix is never returned as
+a successful population. The provider keeps its existing fallback and unavailable
+identity behavior; a refused snapshot does not establish an empty process table.
+
+The Windows structural regression compiles the three production sources with a
+small controlled-buffer fixture using the inbox compiler. It also compares a
+fresh live self-record with `GetProcessTimes`. This component check does not
+qualify the experimental object-read bridge or the full application path.
+The same twelve controls are part of the existing Windows object-admission gate,
+whose selected inventory is now ten suites and 140 JavaScript cases. Native ETW
+self-tests remain a separate 146-case requirement.
+
 ## Building
 
 ```

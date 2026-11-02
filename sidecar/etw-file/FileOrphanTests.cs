@@ -4,6 +4,75 @@ internal static class FileOrphanTests
 {
     internal static void Run(Action<string, Action> test)
     {
+        test("observer accepts the actual framed reserved notice and refuses malformed shapes", () =>
+        {
+            string digest = new('a', 64);
+            var expected = new FileOrphanNotice("reserved", 71, "134000000000001111", [1, 2, 3, 4, 5], digest, null, null);
+            using var stream = new MemoryStream();
+            FileGuardWire.Write(stream, expected, CancellationToken.None).GetAwaiter().GetResult();
+            stream.Position = 0;
+            var stage = FileOrphanObserver.FailureStage.NoticeRead;
+            var actual = FileOrphanObserver.ReadNotice(stream, CancellationToken.None, value => stage = value).GetAwaiter().GetResult();
+            Check(stage == FileOrphanObserver.FailureStage.NoticeParse && actual.kind == expected.kind &&
+                actual.custodianPid == expected.custodianPid && actual.custodianBirth == expected.custodianBirth &&
+                actual.originalPids.SequenceEqual(expected.originalPids) && actual.journalDigest == digest &&
+                actual.previousJournalDigest == null && actual.previousSameScope == null);
+            string valid = System.Text.Json.JsonSerializer.Serialize(expected);
+            foreach (string malformed in new[] {
+                valid[..^1] + ",\"unknown\":true}",
+                valid.Replace("\"kind\":\"reserved\",", "", StringComparison.Ordinal),
+                valid.Replace("\"kind\":\"reserved\"", "\"kind\":\"reserved\",\"kind\":\"reserved\"", StringComparison.Ordinal),
+                valid.Replace(digest, "invalid-digest", StringComparison.Ordinal) })
+            {
+                using var value = System.Text.Json.JsonDocument.Parse(malformed);
+                using var bad = new MemoryStream();
+                FileGuardWire.Write(bad, value.RootElement, CancellationToken.None).GetAwaiter().GetResult();
+                bad.Position = 0;
+                Reject(() => FileOrphanObserver.ReadNotice(bad, CancellationToken.None, _ => { }).GetAwaiter().GetResult());
+            }
+        });
+        test("observer QA failure identifies actual notice rejection without publishing input", () =>
+        {
+            using var malformed = System.Text.Json.JsonDocument.Parse("{\"kind\":\"reserved\",\"private\":\"AEGIS_PRIVATE_OBSERVER_CANARY\"}");
+            foreach (bool enabled in new[] { true, false })
+            {
+                var output = new List<object>();
+                int code = FileOrphanObserver.RunWithDiagnostics(at =>
+                {
+                    FileOrphanObserver.ParseNotice(malformed.RootElement, at);
+                    return Task.FromResult(0);
+                }, enabled, output.Add).GetAwaiter().GetResult();
+                Check(code == 2 && output.Count == (enabled ? 1 : 0));
+                if (!enabled) continue;
+                string json = System.Text.Json.JsonSerializer.Serialize(output.Single());
+                using var value = System.Text.Json.JsonDocument.Parse(json);
+                FileWire.Shape(value.RootElement, "type", "stage");
+                Check(value.RootElement.GetProperty("type").GetString() == "failure" &&
+                    value.RootElement.GetProperty("stage").GetString() == "NoticeParse" &&
+                    !json.Contains("AEGIS_PRIVATE_OBSERVER_CANARY", StringComparison.Ordinal));
+            }
+        });
+        test("normal terminal observer waits for all original objects and preserves actual exit codes", () =>
+        {
+            using var value = System.Text.Json.JsonDocument.Parse("{\"kind\":\"terminal\"}");
+            var originals = new TaskCompletionSource<int[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            bool custodianObserved = false;
+            var observation = FileOrphanObserver.ObserveTerminal(value.RootElement, () =>
+                { custodianObserved = true; return Task.CompletedTask; }, () => 0, () => originals.Task);
+            Check(custodianObserved && !observation.IsCompleted);
+            originals.SetResult([0, 0, 0, 0, 70]);
+            var terminal = observation.GetAwaiter().GetResult();
+            Check(terminal.custodianExit == 0 && terminal.originalExits!.SequenceEqual(new[] { 0, 0, 0, 0, 70 }));
+        });
+        test("normal terminal observer never invents missing or timed-out original closure", () =>
+        {
+            using var value = System.Text.Json.JsonDocument.Parse("{\"kind\":\"terminal\"}");
+            var diagnostic = FileOrphanObserver.ObserveTerminal(value.RootElement, () => Task.CompletedTask,
+                () => 0, null).GetAwaiter().GetResult();
+            Check(diagnostic.originalExits == null);
+            Reject(() => FileOrphanObserver.ObserveTerminal(value.RootElement, () => Task.CompletedTask,
+                () => 0, () => Task.FromException<int[]>(new TimeoutException())).GetAwaiter().GetResult());
+        });
         const string reservation = "12345678123456781234567812345678";
         test("custodian recovers only after all five original objects including main exit", () =>
         {

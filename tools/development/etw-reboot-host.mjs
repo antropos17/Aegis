@@ -2,6 +2,62 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const STARTUP_STAGES = new Set([
+  'guard-connect',
+  'guard-broker',
+  'guard-reserve',
+  'guard-owner-verified',
+  'guard-broker-connected',
+  'guard-broker-verified',
+  'fallback-connect',
+  'fallback-broker',
+  'fallback-reserve',
+]);
+const COLLECTOR_STAGES = new Set([
+  ...STARTUP_STAGES,
+  'peer',
+  'pipeline',
+  'guard',
+  'fallback',
+  'custody',
+  'hello',
+  'authorize',
+  'trace-start',
+  'guard-arm',
+  'capture-start',
+  'trace-enable',
+  'trace-query',
+  'ready',
+  'running',
+  'stop',
+]);
+const int32 = (value) => Number.isInteger(value) && value >= -2147483648 && value <= 2147483647;
+
+function finiteChildDiagnostics(value) {
+  const codes = value.childExitCodes,
+    diagnostics = value.childDiagnostics;
+  return (
+    Array.isArray(codes) &&
+    codes.length <= 64 &&
+    codes.every(int32) &&
+    Array.isArray(diagnostics) &&
+    diagnostics.length === codes.length &&
+    diagnostics.filter((entry) => entry !== null).length <= 4 &&
+    diagnostics.every(
+      (entry, index) =>
+        entry === null ||
+        (codes[index] !== 0 &&
+          entry !== null &&
+          typeof entry === 'object' &&
+          Object.keys(entry).length === 3 &&
+          ['stage', 'kind', 'code'].every((key) => Object.hasOwn(entry, key)) &&
+          COLLECTOR_STAGES.has(entry.stage) &&
+          (['win32', 'hresult'].includes(entry.kind) ||
+            (entry.kind === 'peer-exit' && STARTUP_STAGES.has(entry.stage))) &&
+          int32(entry.code)),
+    )
+  );
+}
 
 /** Use one explicit UAC decision for a bounded fixed-helper qualification phase.
  * The endpoint stays in memory, is never copied into a receipt, and dies with the host.
@@ -55,7 +111,14 @@ export async function withRebootHost(helper, output, env, action, deps = {}) {
           value.type === 'host-ready'
             ? ['type', 'address']
             : value.type === 'host-finished'
-              ? ['type', 'launches', 'liveChildren', 'childExitCodes', 'exitCode']
+              ? [
+                  'type',
+                  'launches',
+                  'liveChildren',
+                  'childExitCodes',
+                  'exitCode',
+                  ...(Object.hasOwn(value, 'childDiagnostics') ? ['childDiagnostics'] : []),
+                ]
               : [];
         assert(
           keys.length &&
@@ -63,6 +126,7 @@ export async function withRebootHost(helper, output, env, action, deps = {}) {
             Object.keys(value).length === keys.length &&
             keys.every((k) => Object.hasOwn(value, k)),
         );
+        if (Object.hasOwn(value, 'childDiagnostics')) assert(finiteChildDiagnostics(value));
         messages.push(value);
       } catch {
         failure = 'Invalid host frame';
@@ -111,6 +175,9 @@ export async function withRebootHost(helper, output, env, action, deps = {}) {
       launches: finish?.launches ?? null,
       liveChildren: finish?.liveChildren ?? null,
       childExitCodes: finish?.childExitCodes ?? [],
+      ...(finish && Object.hasOwn(finish, 'childDiagnostics')
+        ? { childDiagnostics: finish.childDiagnostics }
+        : {}),
     },
   };
 }

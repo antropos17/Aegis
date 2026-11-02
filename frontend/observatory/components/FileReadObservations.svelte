@@ -39,6 +39,7 @@
   let losses = $derived(record(view.losses));
   const loss = (key: string) => (losses[key] == null ? $t('Unknown') : String(losses[key]));
   let folder = $state('');
+  let objectConsent = $state(false);
   let pending = $state(false);
   let verifiedRevision = $state(0n);
   let externalBarrier = $derived($fileReadLedger.revision !== verifiedRevision);
@@ -54,6 +55,8 @@
   let observedRevision = untrack(() => $fileReadLedger.revision);
   let pendingAction = $state<'start' | 'stop' | null>(null);
   let error = $state('');
+  let objectMode = $derived(view.captureMode === 'object-bound');
+  let objectAdmission = $derived(record(view.admission));
   let stopState = $state<'idle' | 'accepted' | 'unknown' | 'confirmed' | 'inactive'>('idle');
   let stopBaseline = $state<number | null>(null);
   let hostChanged = $state(false);
@@ -162,7 +165,9 @@
         report.phase !== view.phase ||
         typeof freshControls.canStop !== 'boolean' ||
         freshControls.canStop !== controls.canStop ||
-        freshControls.canStart !== controls.canStart
+        freshControls.canStart !== controls.canStart ||
+        freshControls.canStartObject !== controls.canStartObject ||
+        report.captureMode !== view.captureMode
       )
         return;
       if (hostChanged) {
@@ -235,9 +240,10 @@
     verificationGeneration++;
     clearTimeout(requestTimer);
   });
-  async function control(action: 'start' | 'stop'): Promise<void> {
+  async function control(action: 'start' | 'start-object' | 'stop'): Promise<void> {
     if (pending || (action === 'stop' && $fileReadLedger.controls >= 2)) return;
-    if (action === 'start' && (!canStart || !folder)) return;
+    if (action !== 'stop' && (!canStart || !folder)) return;
+    if (action === 'start-object' && (!objectConsent || controls.canStartObject !== true)) return;
     const selectedHost = host;
     const ticket = ++generation;
     verificationGeneration++;
@@ -249,7 +255,7 @@
       revision: ledger.revision + 1n,
     }));
     pending = true;
-    pendingAction = action;
+    pendingAction = action === 'stop' ? 'stop' : 'start';
     error = '';
     if (action === 'stop') {
       stopBaseline = typeof telemetry.statsAt === 'number' ? telemetry.statsAt : Date.now();
@@ -276,10 +282,11 @@
         await invoke(
           selectedHost,
           'controlFileReads',
-          action === 'start' ? { action, root: folder } : { action },
+          action !== 'stop' ? { action, root: folder } : { action },
         ),
       );
       if (!alive || expired || ticket !== generation || selectedHost !== host) return;
+      if (action === 'stop') objectConsent = false;
       if (result.success === true) {
         if (action === 'stop') stopState = 'accepted';
         else {
@@ -341,13 +348,19 @@
         'Experimental capture · candidate paths. Potential risks are based on path rules; file contents and malicious intent are not inspected.',
       )}
       {$t('These observations do not change risk scores or audit history.')}
+      {#if objectMode}
+        {$t('Verified object reads are shown separately in Events and may affect alerts and risk.')}
+        {#if objectAdmission.qualified !== true}
+          {$t('Object verification is unavailable; this capture is display only.')}
+        {/if}
+      {/if}
     </p>
     {#if (view.mode === 'ordinary' || view.mode == null) && host}
       <form
         class="read-controls"
         onsubmit={(event) => {
           event.preventDefault();
-          void control('start');
+          void control(objectConsent ? 'start-object' : 'start');
         }}
       >
         <label>
@@ -371,13 +384,36 @@
             onclick={() => void control('stop')}>{$t('Stop file read monitoring')}</button
           >
         {/if}
-        <button class="button" type="submit" disabled={pending || !folder || !canStart}>
-          {$t('Start file read monitoring')}</button
+        <button
+          class="button"
+          type="submit"
+          disabled={pending ||
+            !folder ||
+            !canStart ||
+            (objectConsent && controls.canStartObject !== true)}
         >
+          {$t(
+            objectConsent ? 'Start verified object monitoring' : 'Start file read monitoring',
+          )}</button
+        >
+        <label class="object-consent">
+          <input
+            type="checkbox"
+            bind:checked={objectConsent}
+            disabled={pending || !canStart || controls.canStartObject !== true}
+            aria-describedby="file-read-object-help"
+          />
+          <span>{$t('Include verified object reads in alerts and risk')}</span>
+        </label>
       </form>
       <p id="file-read-scope-help">
         {$t(
           'Choose a local folder. Start asks Windows for permission; monitoring continues until stopped, paused or suspended.',
+        )}
+      </p>
+      <p id="file-read-object-help">
+        {$t(
+          'Opt in to monitor objects identified in this folder for bindings valid up to 10 seconds. A rename or move can invalidate a binding. Names are binding labels; the actual access path is unknown. New, short-lived or unproven objects remain unverified. Retained file handles may temporarily delay renaming or deleting. Proof expires after 10 seconds; cleanup runs on stop or the next two-second sweep while the sensor is responsive.',
         )}
       </p>
       {#if telemetry.stats.monitoringPaused}<p>
@@ -503,6 +539,17 @@
     gap: var(--space-1);
     min-width: 0;
     color: var(--muted);
+  }
+  .read-controls .object-consent {
+    display: flex;
+    align-items: center;
+    flex-basis: 100%;
+    gap: var(--space-2);
+  }
+  .object-consent input {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
   }
   input {
     min-width: 0;

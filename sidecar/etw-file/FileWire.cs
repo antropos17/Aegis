@@ -52,19 +52,22 @@ internal sealed class FileWire(string launch, string session, FilePerformance? p
         {
             if (frame.t == "start")
             {
-                Shape(frame.data, "requestId", "profile", "buffersMiB");
+                if (frame.data.TryGetProperty("objectPolicy", out var objectPolicy))
+                { Shape(frame.data, "requestId", "profile", "buffersMiB", "objectPolicy"); if (objectPolicy.ValueKind != JsonValueKind.True) throw new InvalidDataException(); }
+                else Shape(frame.data, "requestId", "profile", "buffersMiB");
                 if (frame.data.GetProperty("profile").GetString() != Profile || frame.data.GetProperty("buffersMiB").GetInt32() != 16)
                     throw new InvalidDataException();
             }
             else if (frame.t == "stop") Shape(frame.data, "requestId");
             else if (frame.t == "ping") Shape(frame.data);
             else if (frame.t == "prime-issuers") _ = FileIssuerRequest.Parse(frame.data);
+            else if (frame.t == "bind-object-policy") _ = FileObjectBinding.Parse(frame.data);
             else if (frame.t is "escrow-ack" or "consent-ack") Shape(frame.data);
             else if (frame.t == "rescue") FileMainWire.ValidateRescue(frame.data);
             else throw new InvalidDataException();
             if (frame.t is not ("ping" or "escrow-ack" or "consent-ack" or "rescue") && !Id(frame.data.GetProperty("requestId").GetString() ?? "")) throw new InvalidDataException();
         }
-        else if (frame.t is not ("hello" or "ready" or "observations" or "health" or "heartbeat" or "stopped" or "error" or "issuers-primed"))
+        else if (frame.t is not ("hello" or "ready" or "observations" or "health" or "heartbeat" or "stopped" or "error" or "issuers-primed" or "object-policy-bound"))
             throw new InvalidDataException();
         return new ReceivedFrame(frame with { data = frame.data.Clone() }, body);
     }

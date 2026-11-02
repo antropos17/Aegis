@@ -38,7 +38,16 @@ const BASELINE = {
   /** Every tracked file under rules/sequences, repo-relative, as `git ls-files` prints it. */
   trackedFiles: ['rules/sequences/sequences.yaml'],
   /** The one file's documents in order — base documents by `name`, correlations by `id`. */
-  documents: ['cred_file_read', 'outbound_conn', 'SEQ001', 'SEQ002', 'SEQ003'],
+  documents: [
+    'cred_file_read',
+    'outbound_conn',
+    'SEQ001',
+    'SEQ002',
+    'SEQ003',
+    'sensitive_bound_object_read',
+    'confirmed_tcp_observation',
+    'SEQ004',
+  ],
   /** Every `|re` / `|re|i` pair in the file, as `[document name, selection key]`. */
   regexPairs: [['cred_file_read', 'file.path|re|i']],
   rules: [
@@ -54,7 +63,7 @@ const BASELINE = {
     },
   ],
   /** Each correlation uses nullable-entity carriers. */
-  warnings: ['SEQ001', 'SEQ002', 'SEQ003'].map((rule) => ({
+  warnings: ['SEQ001', 'SEQ002', 'SEQ003', 'SEQ004'].map((rule) => ({
     rule,
     step: null,
     reason: 'nullable-entity-id-steps',
@@ -118,6 +127,7 @@ describe('sequence rules — production file parity', () => {
       'SEQ001',
       'SEQ002',
       'SEQ003',
+      'SEQ004',
     ]);
   });
 
@@ -131,7 +141,13 @@ describe('sequence rules — production file parity', () => {
     );
     expect(out.warnings[0].message.startsWith('sequences.yaml: ')).toBe(true);
 
-    expect(out.rules).toHaveLength(3);
+    expect(out.rules).toHaveLength(4);
+    expect(out.rules[3]).toMatchObject({
+      id: 'SEQ004',
+      level: 'low',
+      evidencePolicy: 'credential-egress-v1',
+      timespanMs: 300000,
+    });
     expect(out.rules[2]).toMatchObject({
       id: 'SEQ003',
       level: 'low',
@@ -164,7 +180,7 @@ describe('sequence rules — production file parity', () => {
 
     // The logger saw exactly the warning line and no rejection line: the return value
     // carries the counts, the log carries the causes, and the two must agree.
-    expect(warnSpy).toHaveBeenCalledTimes(3);
+    expect(warnSpy).toHaveBeenCalledTimes(4);
     expect(warnSpy.mock.calls[0][0]).toBe('sequence-loader');
     expect(warnSpy.mock.calls[0][2]).toEqual({
       rule: 'SEQ001',
@@ -176,7 +192,7 @@ describe('sequence rules — production file parity', () => {
   it('loadDir with no argument reads the same production file', () => {
     const out = loader.loadDir();
     expect(out.loadErrors).toBe(0);
-    expect(out.rules.map((r) => r.id)).toEqual(['SEQ001', 'SEQ002', 'SEQ003']);
+    expect(out.rules.map((r) => r.id)).toEqual(['SEQ001', 'SEQ002', 'SEQ003', 'SEQ004']);
   });
 
   it('every re pattern reaches RegExp byte-for-byte as written in YAML, flags pinned', () => {

@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import AgentWorkspace from '../../../frontend/observatory/components/AgentWorkspace.svelte';
 import { emptyTelemetry, type Telemetry } from '../../../frontend/observatory/runtime/host';
-import type { DetectedAgent, FileEvent, NetworkConnection } from '../../../src/shared/types';
+import type { DetectedAgent, PathFileEvent, NetworkConnection } from '../../../src/shared/types';
 
 const agent = (pid: number, instanceId: string): DetectedAgent => ({
   agent: 'Codex',
@@ -13,7 +13,7 @@ const agent = (pid: number, instanceId: string): DetectedAgent => ({
   status: 'running',
   category: 'cli-tool',
 });
-const file = (owner: DetectedAgent): FileEvent => ({
+const file = (owner: DetectedAgent): PathFileEvent => ({
   agent: owner.agent,
   pid: owner.pid,
   instanceId: owner.instanceId ?? null,

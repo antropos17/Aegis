@@ -35,6 +35,26 @@ The executable suite allowlist is `WINDOWS_SUITES` in
 These tests compile disposable C# fixtures using the Windows framework compiler
 and exercise caller identity, retained caller context, sealed import and its main
 reader, plus retained GUI process ownership and its shell object-ID regression.
+The guard-startup fixture additionally requires the installed .NET 10 SDK. It
+links the production startup wait, owner and diagnostic code into a BCL-only
+project with explicit fixture peers. It checks peer exit, canceled I/O and failure
+reporting without elevation, ETW or a qualification guest; its substituted
+authentication/trace boundaries do not establish native capture acceptance.
+The broker-startup fixture references the production sidecar assembly and runs
+its actual two-peer handshake and private framing. Controlled authentication and
+custody callbacks exercise ordering, rejection and cancellation; they do not
+authenticate elevated Windows peers or start ETW. Its default-budget case crosses
+the former shared eight-second deadline while both connection phases stay valid.
+The guard-choreography fixture links the production owner, guard, broker startup
+and private framing. Real local pipes and an ordinary child process exercise
+reservation overlap, both required replies, peer exit and rejection. Identity
+checks and native trace operations are controlled seams; no elevation, ETW
+session or qualification guest is started.
+The reader-pacing fixture compiles the actual read-loop pacing helper with a
+managed monotonic clock. Modeled I/O, rounded and early wakes, and a stalled read
+check that relative sleeps do not accumulate against the unchanged twelve-second
+command budget. These cases preserve 160 reads and the nominal 3.2-second handle
+observation window; they do not execute native reads or qualify guest timing.
 The runner records source HEAD/tree, lock/compiler hashes, Node/platform,
 free space, command exits, duration, test totals and a raw-report hash. Source must
 remain clean at completion. Assertion results must cover every selected suite;

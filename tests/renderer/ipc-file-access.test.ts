@@ -14,7 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { get } from 'svelte/store';
-import type { FileEvent } from '../../src/shared/types';
+import type { FileEvent, PathFileEvent } from '../../src/shared/types';
 
 type FileAccessCb = (data: FileEvent | FileEvent[]) => void;
 let deliver: FileAccessCb | null = null;
@@ -38,7 +38,7 @@ const { events, eventsRetention } = await import('../../src/renderer/lib/stores/
 
 const NOW = 1_754_380_000_000;
 
-function fileEvent(id: number, over: Partial<FileEvent> = {}): FileEvent {
+function fileEvent(id: number, over: Partial<PathFileEvent> = {}): PathFileEvent {
   return {
     agent: 'Claude Code',
     pid: 100,

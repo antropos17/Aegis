@@ -5,7 +5,8 @@ namespace Aegis.EtwLifecycle;
 
 internal sealed record FileQualificationRequest(string[] args);
 internal sealed record FileQualificationReady(string address);
-internal sealed record FileQualificationFinished(int launches, int liveChildren, int[] childExitCodes);
+internal sealed record FileQualificationFinished(int launches, int liveChildren, int[] childExitCodes,
+    FileCollectorDiagnostic?[] childDiagnostics);
 
 internal static class FileQualificationClient
 {
@@ -65,7 +66,8 @@ internal static class FileQualificationClient
         await FileGuardWire.Write(pipe, new FileGuardCommand("finish"), finish.Token);
         var result = await FileGuardWire.Read<FileQualificationFinished>(pipe, finish.Token);
         await child.WaitForExitAsync(finish.Token);
-        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { type = "host-finished", result.launches, result.liveChildren, result.childExitCodes, exitCode = child.ExitCode }));
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { type = "host-finished", result.launches, result.liveChildren,
+            result.childExitCodes, result.childDiagnostics, exitCode = child.ExitCode }));
         return result.liveChildren == 0 && child.ExitCode == 0 ? 0 : 2;
     }
 }

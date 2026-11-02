@@ -66,6 +66,7 @@ it('shows current marker details on keyboard focus and hover and dismisses obsol
       events: [
         {
           ...agents[0],
+          createTime100ns: agents[0].createTime100ns ?? undefined,
           instanceId: agents[0].instanceId ?? null,
           timestamp: Date.now(),
           file: 'X:/fixture/key',

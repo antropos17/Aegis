@@ -26,6 +26,12 @@
   import SequenceEvidence from './SequenceEvidence.svelte';
   import ToolContext from './ToolContext.svelte';
   import { hasToolContext, withoutToolContext } from '../runtime/tool-context-display';
+  import {
+    isObjectRead,
+    observationLabel,
+    objectResourceKey,
+    OBJECT_READ_EXPLANATION,
+  } from '../runtime/object-read';
   let {
     row,
     host = null,
@@ -96,7 +102,11 @@
         Records: activity.length,
         Resources: new Set(
           activity
-            .map((entry) => canonicalObservationPath(describeObservation(entry).path))
+            .map(
+              (entry) =>
+                objectResourceKey(entry) ||
+                canonicalObservationPath(describeObservation(entry).path),
+            )
             .filter(Boolean),
         ).size,
         firstSeen: times.length ? Math.min(...times) : null,
@@ -225,7 +235,9 @@
         <span class="badge">{$t(resourceVisual(row).label)}</span>
       </div>
       <div class="resource-path">
-        <span>{$t('Full path / address')}</span><code>{info.path}</code>
+        <span>{$t(isObjectRead(row) ? 'Binding label' : 'Full path / address')}</span><code
+          >{isObjectRead(row) ? observationLabel(row) : info.path}</code
+        >
       </div>
       <div class="resource-owner">
         <span>{$t('Agent / context')}</span><ObservationIdentity
@@ -234,6 +246,7 @@
         />
       </div>
       <p class="entity-note">{info.explanation}</p>
+      {#if isObjectRead(row)}<p class="entity-note">{$t(OBJECT_READ_EXPLANATION)}</p>{/if}
     </section>{/if}
   {#if kind === 'catalog' && row.description}<p class="detail-description">
       {String(row.description)}

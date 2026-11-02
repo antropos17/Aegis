@@ -69,10 +69,16 @@ const ORCHESTRATION = Object.freeze({
 /**
  * Which product site each reproduced sequence was read off, so a failure names the
  * file and function to open rather than only the kind that broke.
- * @type {Readonly<Record<string, {file: string, anchor: string}>>}
+ * @type {Readonly<Record<string, {file: string, anchor: string, delegates?: ReadonlyArray<{name:string,anchor:string}>}>>}
  */
 const ORCHESTRATION_SITES = Object.freeze({
-  'fs.event': Object.freeze({ file: 'src/main/main.js', anchor: 'function onFileEvent(ev) {' }),
+  'fs.event': Object.freeze({
+    file: 'src/main/main.js',
+    anchor: 'function onFileEvent(ev) {',
+    delegates: Object.freeze([
+      { name: 'publishLiveFileEvent', anchor: 'function publishLiveFileEvent(' },
+    ]),
+  }),
   'handles.tick': Object.freeze({
     file: 'src/main/scan-loop.js',
     anchor: 'async function doFileScan(',

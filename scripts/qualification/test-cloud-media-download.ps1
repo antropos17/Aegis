@@ -48,18 +48,19 @@ Write-Output 'media-fixture-production-admission:refused'
 $text = [IO.File]::ReadAllText($original)
 $pin = 'expectedBytes == 8225329152L && url == "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"'
 $deadline = 'TimeSpan.FromMinutes(20)'
-if (($text.Split(@($pin), [StringSplitOptions]::None)).Count -ne 2 -or ($text.Split(@($deadline), [StringSplitOptions]::None)).Count -ne 2) { throw 'media-fixture-fixed-input-refused' }
-# These two substitutions affect only generated disposable compilation inputs.
-# No fixture source, alternate URL or shorter deadline enters the lab assembly.
-$generated = $text.Replace($pin, 'expectedBytes == 131072L && url.StartsWith("http://127.0.0.1:", StringComparison.Ordinal)').Replace($deadline, 'TimeSpan.FromMilliseconds(750)')
+$pinnedHash = 'bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38'
+if (($text.Split(@($pin), [StringSplitOptions]::None)).Count -ne 2 -or ($text.Split(@($deadline), [StringSplitOptions]::None)).Count -ne 2 -or ($text.Split(@($pinnedHash), [StringSplitOptions]::None)).Count -ne 2) { throw 'media-fixture-fixed-input-refused' }
+# Only fixed media admission, public fixture digest and deadline change in this
+# disposable compilation. Production retains its Microsoft pin and SHA-256.
+$generated = $text.Replace($pin, 'expectedBytes == 131072L && url.StartsWith("http://127.0.0.1:", StringComparison.Ordinal)').Replace($deadline, 'TimeSpan.FromMilliseconds(750)').Replace($pinnedHash, '02c9a68f567b8ec215d893cde67ae2da41ba3c9b838d0ba4d3d04ab3cdc58da6')
 $source = Join-Path $owned 'loopback.cs'; [IO.File]::WriteAllText($source, $generated)
 $exe = Compile-Media 'loopback' $source $true
 $stdout = Join-Path $owned 'loopback.txt'; $stderr = Join-Path $owned 'loopback.error'
 $code = Invoke-CloudGuestNativeProcess $exe @(('"' + $owned + '"')) $stdout $stderr 15000
 $lines = [IO.File]::ReadAllLines($stdout)
-if ($code -ne 0 -or (Get-Item -LiteralPath $stderr).Length -ne 0 -or $lines.Count -ne 5) { throw 'media-fixture-controls-refused' }
+if ($code -ne 0 -or (Get-Item -LiteralPath $stderr).Length -ne 0 -or $lines.Count -ne 10) { throw 'media-fixture-controls-refused' }
 foreach ($line in $lines) {
-    if ($line -cnotmatch '\Amedia-fixture:(success|wrong-length|short-eof|request-cancel|body-cancel);phase=(Complete|Response|Read|Finalize|Request);read=(0|65536|131072);written=(0|65536|131072);deadline=(True|False)\z') { throw 'media-fixture-output-refused' }
+    if ($line -cnotmatch '\Amedia-fixture:(success|wrong-length|short-eof|request-cancel|body-cancel|resume|resume-ignored|bad-range|changed-entity|wrong-hash);phase=(Complete|Response|Read|Finalize|Request);requests=[1-4];resumes=[0-3];written=(0|65536|122880|131072);verified=(True|False);promoted=(True|False);deadline=(True|False)\z') { throw 'media-fixture-output-refused' }
     Write-Output $line
 }
 if ($MutationControls) {
@@ -86,13 +87,15 @@ $report = [ordered]@{ media = $null }; $windowsIso = Join-Path $owned 'caller.pu
 function Stage([string]$Name, [scriptblock]$Operation) { & $Operation }
 try { & ([scriptblock]::Create($block)) } catch { $failed = $true }
 finally { [MediaDownloadFixture]::CompleteCallerCancellation() }
-if (!$failed -or $null -ne $report.media -or !$report.Contains('mediaDownload') -or $report.mediaDownload.Count -ne 12 -or
+if (!$failed -or $null -ne $report.media -or !$report.Contains('mediaDownload') -or $report.mediaDownload.Count -ne 17 -or
     $report.mediaDownload.phase -cne 'Read' -or !$report.mediaDownload.deadlineExpired -or $report.mediaDownload.expectedBytes -ne 131072 -or
     $report.mediaDownload.declaredBytes -ne 131072 -or $report.mediaDownload.responseStatusCode -ne 200 -or
-    $report.mediaDownload.bytesRead -ne 65536 -or $report.mediaDownload.bytesWritten -ne 65536) { throw 'media-lab-failure-receipt-refused' }
-$held = [IO.FileStream]::new($windowsIso, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
+    $report.mediaDownload.bytesRead -ne 65536 -or $report.mediaDownload.bytesWritten -ne 65536 -or
+    $report.mediaDownload.requestCount -ne 1 -or $report.mediaDownload.resumeRequests -ne 0 -or $report.mediaDownload.transientFailures -ne 0 -or
+    $report.mediaDownload.integrityVerified -or $report.mediaDownload.promoted -or (Test-Path -LiteralPath $windowsIso)) { throw 'media-lab-failure-receipt-refused' }
+$held = [IO.FileStream]::new(($windowsIso + '.partial'), [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
 try { if ($held.Length -ne 65536) { throw 'media-lab-fixture-length-refused' } } finally { $held.Dispose() }
-if (Test-Path -LiteralPath $windowsIso) { throw 'media-lab-fixture-cleanup-refused' }
+if ((Test-Path -LiteralPath $windowsIso) -or (Test-Path -LiteralPath ($windowsIso + '.partial'))) { throw 'media-lab-fixture-cleanup-refused' }
 Write-Output 'media-fixture-lab-failure-receipt:closed-progress-retained'
 $tokens = $null; $errors = $null
 [Management.Automation.Language.Parser]::ParseFile($lab, [ref]$tokens, [ref]$errors) | Out-Null

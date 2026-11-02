@@ -179,7 +179,8 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
         foreach ($leaf in @('media/answer', 'vm', 'evidence', 'transfer')) { [IO.Directory]::CreateDirectory((Join-Path $Root $leaf)) | Out-Null }
         $mediaRoot = Join-Path $Root 'media'; $vmRoot = Join-Path $Root 'vm'; $windowsIso = Join-Path $mediaRoot 'windows.iso'; $answerIso = Join-Path $mediaRoot 'answer.iso'
         $answer = Join-Path $mediaRoot 'answer/Autounattend.xml'; $vhd = Join-Path $vmRoot 'guest.vhdx'; $receipt = Join-Path $Root 'evidence/receipt.json'; $extra = Join-Path $Root 'transfer/runtime.exe'
-        foreach ($file in @($windowsIso, $answerIso, $answer, $vhd, $receipt, $extra)) { [IO.File]::WriteAllText($file, 'dummy-closed-control') }
+        $partial = $windowsIso + '.partial'
+        foreach ($file in @($windowsIso, $partial, $answerIso, $answer, $vhd, $receipt, $extra)) { [IO.File]::WriteAllText($file, 'dummy-closed-control') }
         if ($mode -ceq 'pre-vm' -and $BaselineLab) {
             $old = [Management.Automation.Language.Parser]::ParseFile($BaselineLab, [ref]$tokens, [ref]$errors)
             $branch = @($old.FindAll({ param($node) $node -is [Management.Automation.Language.IfStatementAst] -and $node.Extent.Text.StartsWith('if ($report.removedObserved -and !$mounted)', [StringComparison]::Ordinal) }, $true))
@@ -193,7 +194,7 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
         $imageMode = if ($mode -in @('attached', 'malformed', 'foreign', 'throw')) { $mode } else { 'closed' }
         $script:closedImageQueries = 0; $lock = $null
         if ($mode -ceq 'locked') { $lock = [IO.File]::Open($windowsIso, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None) }
-        if ($mode -ceq 'absent') { foreach ($file in @($windowsIso, $answerIso, $answer)) { [IO.File]::Delete($file) } }
+        if ($mode -ceq 'absent') { foreach ($file in @($windowsIso, $partial, $answerIso, $answer)) { [IO.File]::Delete($file) } }
         $foreign = Join-Path $owned ('foreign-' + $attempt); [IO.Directory]::CreateDirectory($foreign) | Out-Null
         $foreignCanary = Join-Path $foreign 'preserved.txt'; [IO.File]::WriteAllText($foreignCanary, 'foreign-control')
         if ($mode -ceq 'reparse-parent') {
@@ -216,7 +217,7 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
         }
         finally { if ($null -ne $lock) { $lock.Dispose() } }
         if ($mode -in @('pre-vm', 'post-vm', 'absent')) {
-            if (!$value.completed -or !$value.eligible -or [IO.File]::Exists($windowsIso) -or [IO.File]::Exists($answerIso) -or [IO.File]::Exists($answer)) { throw 'closed-cleanup-control-closed-files-retained' }
+            if (!$value.completed -or !$value.eligible -or [IO.File]::Exists($windowsIso) -or [IO.File]::Exists($partial) -or [IO.File]::Exists($answerIso) -or [IO.File]::Exists($answer)) { throw 'closed-cleanup-control-closed-files-retained' }
             if (($mode -ceq 'post-vm') -eq [IO.File]::Exists($vhd)) { throw 'closed-cleanup-control-vhd-state-wrong' }
         } elseif ($mode -ceq 'locked') {
             if ($value.completed -or $value.failure -cne 'closed-file-cleanup-failed' -or ![IO.File]::Exists($windowsIso)) { throw 'closed-cleanup-control-locked-file-not-preserved' }

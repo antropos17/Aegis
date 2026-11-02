@@ -17,7 +17,7 @@ export default defineConfig(({ mode, command }) => {
         transform(code, id) {
           const normalized = id.replaceAll('\\', '/');
           if (
-            !/\/src\/shared\/(instance-key|skill-path|observation-display|false-positive-match)\.js$/.test(
+            !/\/src\/shared\/(instance-key|skill-path|observation-display|false-positive-match|bound-read-object)\.js$/.test(
               normalized,
             )
           )
@@ -52,6 +52,7 @@ export default defineConfig(({ mode, command }) => {
         resolve(__dirname, 'src/shared/skill-path.js'),
         resolve(__dirname, 'src/shared/observation-display.js'),
         resolve(__dirname, 'src/shared/false-positive-match.js'),
+        resolve(__dirname, 'src/shared/bound-read-object.js'),
       ],
     },
     server: { host: '127.0.0.1', port: 8770, strictPort: true },

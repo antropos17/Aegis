@@ -1,5 +1,6 @@
 import { instances, measured, record, records, type RecordData, type Telemetry } from './host';
 import { radarGroups, type ObservedInstance } from './radar';
+import { objectReadMatchesProcess } from './object-read';
 
 const factors: Record<string, { label: string; detail: string }> = {
   sensitive: {
@@ -56,8 +57,10 @@ export function riskContext(row: RecordData, state: Telemetry) {
     (group?.members[0] as unknown as RecordData | undefined) ??
     (captured
       ? row
-      : (current.find((a) => a.instanceId && a.instanceId === row.instanceId) as unknown as
-          RecordData | undefined));
+      : (current.find(
+          (a) =>
+            a.instanceId && a.instanceId === row.instanceId && objectReadMatchesProcess(row, a),
+        ) as unknown as RecordData | undefined));
   const basis = record(subject?.riskEvidence);
   const contributions = records(basis.factors)
     .flatMap((factor) => {

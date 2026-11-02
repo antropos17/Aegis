@@ -4,6 +4,12 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 export const GUI_EXECUTABLE = 'AEGIS - AI Monitoring & Threat Detection.exe';
+// Exact metadata files copied by the supported portable hook-review runtimes.
+const runtimeMetadata = new Set(
+  ['10.0.10', '10.0.14'].map(
+    (version) => `resources/hook-review/runtime/shared/Microsoft.NETCore.App/${version}/.version`,
+  ),
+);
 const invalid = () => {
   throw new Error('protected-gui-manifest-refused');
 };
@@ -24,7 +30,8 @@ export function validateGuiPath(value) {
       !part ||
       part === '.' ||
       part === '..' ||
-      /^[ .]|[ .]$/.test(part) ||
+      /^ |[ .]$/.test(part) ||
+      (part.startsWith('.') && !(part === '.version' && runtimeMetadata.has(value))) ||
       /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part)
     )
       invalid();
@@ -69,6 +76,7 @@ export function produceGuiManifest(sourceRoot) {
         before = fs.lstatSync(absolute, { bigint: true });
       if (before.isSymbolicLink()) invalid();
       if (before.isDirectory()) {
+        if (runtimeMetadata.has(item)) invalid();
         directories.push(item);
         if (directories.length > 1024) invalid();
         visit(item);

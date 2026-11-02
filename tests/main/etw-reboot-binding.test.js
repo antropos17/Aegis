@@ -29,7 +29,7 @@ afterEach(() => {
   }
 });
 
-async function fixture() {
+async function fixture({ compilerDeclaration = false } = {}) {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-reboot-binding-'));
   folders.push(folder);
   const root = path.join(folder, 'source'),
@@ -41,6 +41,15 @@ async function fixture() {
     ['src/main/main.js', 'module.exports = {};\n'],
     ['src/shared/test.json', '{"fixture":true}\n'],
     ['sidecar/etw-file/FileWire.cs', 'fixture-protocol-10\n'],
+    ...(compilerDeclaration
+      ? [
+          ['src/shared/instance-key.js', 'module.exports = {};\n'],
+          [
+            'src/shared/instance-key.d.ts',
+            'export function buildInstanceKey(agentName: string): string;\n',
+          ],
+        ]
+      : []),
   ];
   for (const [file, bytes] of rows) fs.writeFileSync(path.join(root, file), bytes);
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ aegisEtwDiagnostic: true }));
@@ -48,7 +57,14 @@ async function fixture() {
   fs.writeFileSync(path.join(candidate, GUI_EXECUTABLE), 'fixture-only-never-executed');
   for (const file of ['EtwFile.exe', 'EtwFile.dll'])
     fs.writeFileSync(path.join(candidate, 'resources/etw-file', file), file);
-  await createFixtureAsar(root, path.join(candidate, 'resources/app.asar'));
+  const declaration = path.join(root, 'src/shared/instance-key.d.ts');
+  if (compilerDeclaration) fs.unlinkSync(declaration);
+  try {
+    await createFixtureAsar(root, path.join(candidate, 'resources/app.asar'));
+  } finally {
+    if (compilerDeclaration)
+      fs.writeFileSync(declaration, rows.find(([file]) => file.endsWith('.d.ts'))[1]);
+  }
   const head = 'a'.repeat(40),
     tree = 'b'.repeat(40);
   const config = path.join(folder, 'config.json'),
@@ -77,7 +93,11 @@ async function fixture() {
     nativeDllSha256: rebootHash('EtwFile.dll'),
     runtimeSourcesSha256: rebootHash(JSON.stringify(hashed)),
     archiveSourceSha256: rebootHash(
-      JSON.stringify(hashed.filter(([file]) => file.startsWith('src/'))),
+      JSON.stringify(
+        hashed.filter(
+          ([file]) => file.startsWith('src/') && file !== 'src/shared/instance-key.d.ts',
+        ),
+      ),
     ),
     harnessSha256: rebootHash('[]'),
     configSha256: rebootHash(fs.readFileSync(config)),
@@ -119,6 +139,15 @@ async function fixture() {
 }
 
 describe('current restart candidate identity binding without native execution', () => {
+  it('rejects declaration drift against a previously frozen full-source binding', async () => {
+    const f = await fixture({ compilerDeclaration: true });
+    expect(f.read().runtimeSourcesSha256).toBe(f.build.runtimeSourcesSha256);
+    fs.appendFileSync(
+      path.join(f.root, 'src/shared/instance-key.d.ts'),
+      '// compiler input changed\n',
+    );
+    expect(f.read).toThrow('Build input mismatch');
+  });
   it('waits for final ASAR payload writes before exposing a byte-bound fixture', async () => {
     const f = await fixture();
     const archive = path.join(f.candidate, 'resources/app.asar');

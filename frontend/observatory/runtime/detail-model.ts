@@ -1,6 +1,7 @@
 import { instances, record, records, type RecordData, type Telemetry } from './host';
 import { radarGroups } from './radar';
 import { describeObservation } from '../../../src/shared/observation-display.js';
+import { isObjectRead, objectReadMatchesProcess } from './object-read';
 export interface DetailTab {
   id: string;
   label: string;
@@ -19,7 +20,7 @@ export function detailKind(row: RecordData): DetailKind {
         ? 'records'
         : row.displayName
           ? 'catalog'
-          : row.file || row.path || row.remoteIp || row.domain
+          : isObjectRead(row) || row.file || row.path || row.remoteIp || row.domain
             ? 'resource'
             : 'information';
 }
@@ -32,6 +33,7 @@ export function detailMembers(row: RecordData, state: Telemetry): ReturnType<typ
 /** Recorded activity for this entity only; directory context does not create ownership. @param row Entity @param state Telemetry @returns Records @since 0.14.1 */
 export function detailActivity(row: RecordData, state: Telemetry): RecordData[] {
   if (Array.isArray(row.observations)) return records(row.observations);
+  const targets = row.agentGroupKey ? detailMembers(row, state) : row.process ? [row] : [];
   const ids = new Set(
     row.agentGroupKey
       ? detailMembers(row, state)
@@ -45,6 +47,7 @@ export function detailActivity(row: RecordData, state: Telemetry): RecordData[] 
     (entry) =>
       !!entry.instanceId &&
       ids.has(entry.instanceId) &&
+      (!isObjectRead(entry) || targets.some((target) => objectReadMatchesProcess(entry, target))) &&
       record(record(entry).attribution).status !== 'unattributed',
   ) as unknown as RecordData[];
 }

@@ -29,6 +29,7 @@ internal static class FileQualificationHost
         if (!Security.RestrictedAcl(server)) return 3;
         using var lifetime = new CancellationTokenSource(TimeSpan.FromMinutes(40));
         var children = new List<Process>();
+        var diagnostics = new List<(StreamReader? Reader, Task<FileCollectorDiagnostic?> Result)>();
         Task stop = Task.Run(async () =>
         {
             try { var command = await FileGuardWire.Read<FileGuardCommand>(bootstrap, lifetime.Token);
@@ -63,7 +64,15 @@ internal static class FileQualificationHost
                     var info = Program.Child(value.args);
                     info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = false;
                     info.Environment.Remove(FileQualificationPolicy.Variable);
+                    bool diagnose = value.args.Length == 11 && FileQualificationPolicy.Collector(value.args[0]);
+                    if (diagnose)
+                    {
+                        info.Environment[FileQualificationDiagnostic.CollectorVariable] = "1";
+                        info.RedirectStandardError = true;
+                    }
                     var child = Process.Start(info) ?? throw new IOException(); children.Add(child);
+                    diagnostics.Add(diagnose ? (child.StandardError, FileQualificationDiagnostic.Drain(child.StandardError)) :
+                        (null, Task.FromResult<FileCollectorDiagnostic?>(null)));
                     var witness = FileMainHandles.Deposit(client, child.SafeHandle, child.Id);
                     // An ambiguous delivery is never remotely closed/retried. At worst the
                     // authenticated normal client retains one query-only reference until exit.
@@ -82,9 +91,27 @@ internal static class FileQualificationHost
         long until = Stopwatch.GetTimestamp();
         while (children.Any(c => !c.HasExited) && Stopwatch.GetElapsedTime(until).TotalSeconds < 25) await Task.Delay(100);
         int live = children.Count(c => !c.HasExited);
+        // Only exited children appear in either parallel array. Keep at most four
+        // finite records so the existing 2048-byte private wire budget also holds
+        // at the maximum 64 launches. Missing diagnostics carry no success claim.
+        var exited = children.Select((child, index) => (child, index)).Where(item => item.child.HasExited).ToArray();
+        var childDiagnostics = new FileCollectorDiagnostic?[exited.Length]; int retained = 0;
+        using var diagnosticDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        for (int i = 0; i < exited.Length; i++)
+        {
+            var item = exited[i];
+            if (item.child.ExitCode == 0 || retained >= 4) continue;
+            try
+            {
+                var value = await diagnostics[item.index].Result.WaitAsync(diagnosticDeadline.Token);
+                if (value != null) { childDiagnostics[i] = value; retained++; }
+            }
+            catch { } // Inherited stderr handles cannot delay qualification finish indefinitely.
+        }
+        foreach (var diagnostic in diagnostics) { try { diagnostic.Reader?.Dispose(); } catch { } }
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try { await FileGuardWire.Write(bootstrap, new FileQualificationFinished(children.Count, live,
-            children.Where(c => c.HasExited).Select(c => c.ExitCode).ToArray()), finish.Token); }
+            exited.Select(item => item.child.ExitCode).ToArray(), childDiagnostics), finish.Token); }
         finally { foreach (var child in children) child.Dispose(); }
         return live == 0 ? 0 : 2;
     }

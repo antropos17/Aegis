@@ -169,6 +169,7 @@ function reduceSession(state, message, now) {
       'stop',
       'ping',
       'prime-issuers',
+      'bind-object-policy',
       'escrow-ack',
       'consent-ack',
       'rescue',
@@ -198,7 +199,14 @@ function reduceSession(state, message, now) {
     error('hello-required');
   if (message.t === 'ready' && state.phase !== 'starting') error('unexpected-ready');
   if (
-    ['health', 'heartbeat', 'observations', 'issuers-primed', 'stopped'].includes(message.t) &&
+    [
+      'health',
+      'heartbeat',
+      'observations',
+      'issuers-primed',
+      'object-policy-bound',
+      'stopped',
+    ].includes(message.t) &&
     state.phase !== 'running'
   )
     error('ready-required');
@@ -216,6 +224,7 @@ function reduceSession(state, message, now) {
     case 'heartbeat':
       return withTelemetry(next, message.data, now);
     case 'issuers-primed':
+    case 'object-policy-bound':
       return next; // Preparation is not capture coverage or process-population health.
     case 'observations': {
       const records = message.data.records;
