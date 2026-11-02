@@ -1,0 +1,57 @@
+name: Installed owner-console qualification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installed-owner:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      HUSKY: '0'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Allocate disposable runner storage
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP ('aegis-owner-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $root) { throw 'Existing qualification directory' }
+          New-Item -ItemType Directory -Path $root,(Join-Path $root 'temp') | Out-Null
+          @("AEGIS_OWNER_QA_ROOT=$root", "TEMP=$root\temp", "TMP=$root\temp", "npm_config_cache=$root\npm-cache", "NUGET_PACKAGES=$root\nuget", "ELECTRON_CACHE=$root\electron", "ELECTRON_BUILDER_CACHE=$root\builder") | Add-Content -LiteralPath $env:GITHUB_ENV
+          Get-PSDrive C,D | Select-Object Name,Free
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build private installer without publication
+        run: node node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never -c.nsis.runAfterFinish=false "-c.directories.output=$env:AEGIS_OWNER_QA_ROOT\package"
+      - name: Qualify installed deletion and different-account refusal
+        run: ./scripts/qualification/qualify-installed-owner.ps1 -Root $env:AEGIS_OWNER_QA_ROOT
+      - name: Upload bounded qualification receipts
+        if: always() && env.AEGIS_OWNER_QA_ROOT != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: installed-owner-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/installed-receipt.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/receipt.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/console.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign-result.json
+          if-no-files-found: warn
+          retention-days: 7
