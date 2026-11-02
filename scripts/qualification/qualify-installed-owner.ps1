@@ -54,6 +54,10 @@ try {
     $script = Join-Path $foreign 'attempt.ps1'
     @'
 $ErrorActionPreference='Stop'
+trap {
+    @{stage='foreign-account-preparation';code=$_.Exception.HResult}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $PSScriptRoot 'initialization-failure.json') -Encoding utf8
+    exit 1
+}
 $plan=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'plan.json') -Raw | ConvertFrom-Json
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 if($sid -ne $plan.foreignSid -or $sid -eq $plan.ownerSid) { throw 'Actual foreign token mismatch' }
@@ -94,7 +98,16 @@ if($refused.exitCode -ne 2 -or $refused.forced -or $refused.reviewObserved -or (
     $credential = [PSCredential]::new(($env:COMPUTERNAME + '\' + $account), $password)
     $target=Join-Path $Root 'delete/reject/owned-target.txt'
     $before=(Get-FileHash -LiteralPath $target).Hash
-    Wait-Owned (Start-Process -FilePath "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" -Credential $credential -LoadUserProfile -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-File', ('"' + $script + '"')) -WorkingDirectory $foreign -PassThru -WindowStyle Hidden) 90000
+    # Leave Environment untouched: CreateProcessWithLogonW then constructs the
+    # target user's environment, rather than inheriting runner-admin variables.
+    $start=[Diagnostics.ProcessStartInfo]::new()
+    $start.FileName="$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe"
+    $start.Arguments='-NoLogo -NoProfile -NonInteractive -File "'+$script+'"'
+    $start.WorkingDirectory=$foreign
+    $start.UserName=$account; $start.Domain=$env:COMPUTERNAME; $start.Password=$credential.Password
+    $start.LoadUserProfile=$true; $start.UseShellExecute=$false
+    $start.CreateNoWindow=$true; $start.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
+    Wait-Owned ([Diagnostics.Process]::Start($start)) 90000
     $result=Get-Content -LiteralPath $plan.result -Raw | ConvertFrom-Json
     if ($result.sid -ne $foreignSid -or $result.exitCode -ne 2 -or -not $result.positiveConsole -or -not $result.originalAnchorsReadable -or $result.negativeForced -or $result.negativePreview -or $result.endpointCreated -or (Get-FileHash -LiteralPath $target).Hash -ne $before) { throw 'Different-account refusal oracle failed' }
     $receipt.differentSid=$true; $receipt.ownerRefused=$true

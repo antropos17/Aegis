@@ -61,6 +61,7 @@ jobs:
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/driver.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign-result.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/result.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/initialization-failure.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/receipt.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/profile-preflight.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/fixture-ownership.json
