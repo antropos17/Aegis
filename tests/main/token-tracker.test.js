@@ -310,6 +310,7 @@ describe('token-tracker inherited model names regression', () => {
       expect(computeCost(model, 1000000, 0)).toEqual({
         costUsd: DEFAULT_PRICING.input,
         knownModel: false,
+        pricingEstimated: true,
       });
       trackTokens({ pid: 9, instanceId: '9:live' }, { model, inputTokens: 1000000 });
       const result = trackTokens(

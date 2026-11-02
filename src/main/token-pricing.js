@@ -4,9 +4,8 @@
  * Published per-model pricing, in USD per 1,000,000 tokens, split into input
  * (prompt) and output (completion) rates.
  *
- * Current Claude rates rechecked 2026-10-01 against the provider pricing page below. The
- * legacy Opus 4.1 row retains its historical pre-price-cut rate and is not marked
- * verified.
+ * Current Claude rates rechecked 2026-10-01 against the provider pricing page below.
+ * The legacy Opus 4.1 row retains its historical pre-price-cut rate and is unverified.
  * GPT/Gemini rates are still approximate authoring-time guesses (their inline
  * `TODO: verify pricing`) and none of these auto-refresh — confirm against the
  * provider's current price sheet before presenting any dollar figure as
@@ -18,12 +17,12 @@ const MODEL_PRICING = Object.freeze({
   // https://platform.claude.com/docs/en/about-claude/pricing
   // Existing model IDs are retained; unknown/new IDs use the estimated fallback.
   'claude-opus-4-8': { input: 5.0, output: 25.0, verifiedAt: '2026-10-01' },
-  'claude-opus-4-7': { input: 5.0, output: 25.0 , verifiedAt: '2026-10-01' },
-  'claude-opus-4-6': { input: 5.0, output: 25.0 , verifiedAt: '2026-10-01' },
+  'claude-opus-4-7': { input: 5.0, output: 25.0, verifiedAt: '2026-10-01' },
+  'claude-opus-4-6': { input: 5.0, output: 25.0, verifiedAt: '2026-10-01' },
   'claude-sonnet-4-6': { input: 3.0, output: 15.0, verifiedAt: '2026-10-01' },
   'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0, verifiedAt: '2026-10-01' },
-  'claude-sonnet-4-5': { input: 3.0, output: 15.0 , verifiedAt: '2026-10-01' },
-  'claude-opus-4-1': { input: 15.0, output: 75.0 , verifiedAt: '2026-10-01' }, // legacy Opus rate (pre price cut)
+  'claude-sonnet-4-5': { input: 3.0, output: 15.0, verifiedAt: '2026-10-01' },
+  'claude-opus-4-1': { input: 15.0, output: 75.0 }, // legacy Opus rate (unverified)
   // OpenAI — GPT (USD / 1M tokens). TODO: verify pricing.
   'gpt-4o': { input: 2.5, output: 10.0 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
