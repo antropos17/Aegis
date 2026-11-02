@@ -12,7 +12,8 @@
         .includes(query.trim().toLowerCase()),
     ),
   );
-  let current = $derived(Math.min(page, Math.max(0, Math.ceil(filtered.length / 20) - 1)));
+  let pages = $derived(Math.ceil(filtered.length / 20));
+  let current = $derived(Math.min(page, Math.max(0, pages - 1)));
 </script>
 
 {#if rows.length}
@@ -26,6 +27,16 @@
     >
     <span class="muted">{filtered.length} / {rows.length} {$t('records')}</span>
   </div>
+  <p class="sr-only" role="status" aria-live="polite">
+    {pages > 1
+      ? $t('{count} of {total} records, page {page} of {pages}', {
+          count: filtered.length,
+          total: rows.length,
+          page: current + 1,
+          pages,
+        })
+      : $t('{count} of {total} records', { count: filtered.length, total: rows.length })}
+  </p>
   <div class="evidence-rows">
     {#each filtered.slice(current * 20, (current + 1) * 20) as row (row)}
       <details>
@@ -42,14 +53,21 @@
     {:else}<p class="muted">{$t('No records match this filter.')}</p>{/each}
   </div>
   {#if filtered.length > 20}<div class="pagination">
-      <button class="button" disabled={current === 0} onclick={() => (page = current - 1)}
-        >{$t('Previous')}</button
-      >
-      <span>{current + 1} / {Math.ceil(filtered.length / 20)}</span>
+      <!-- aria-disabled, not disabled: a disabled button drops keyboard focus at the boundary. -->
       <button
         class="button"
-        disabled={(current + 1) * 20 >= filtered.length}
-        onclick={() => (page = current + 1)}>{$t('Next')}</button
+        aria-disabled={current === 0}
+        onclick={() => {
+          if (current > 0) page = current - 1;
+        }}>{$t('Previous')}</button
+      >
+      <span>{current + 1} / {pages}</span>
+      <button
+        class="button"
+        aria-disabled={current + 1 >= pages}
+        onclick={() => {
+          if (current + 1 < pages) page = current + 1;
+        }}>{$t('Next')}</button
       >
     </div>{/if}
 {:else}<p class="empty muted">{$t(empty)}</p>{/if}
@@ -122,6 +140,10 @@
   .pagination {
     justify-content: flex-end;
     margin-top: var(--space-3);
+  }
+  .pagination > .button[aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: default;
   }
   .empty {
     padding: var(--space-3) 0;
