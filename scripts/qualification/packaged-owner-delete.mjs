@@ -43,7 +43,14 @@ function ownFixtureMarkers(profile) {
         Buffer.from(script, 'utf16le').toString('base64'),
       ],
       {
-        env: { ...process.env, AEGIS_QA_PROFILE: profile },
+        env: {
+          ...process.env,
+          PSModulePath: path.join(
+            process.env.SystemRoot,
+            'System32/WindowsPowerShell/v1.0/Modules',
+          ),
+          AEGIS_QA_PROFILE: profile,
+        },
         encoding: 'utf8',
         timeout: 10000,
         windowsHide: true,
@@ -67,6 +74,7 @@ function remainingOwnedProcesses() {
     {
       env: {
         ...process.env,
+        PSModulePath: path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/Modules'),
         AEGIS_QA_PACKAGE_ROOT: path.dirname(exe) + path.sep,
         AEGIS_QA_HELPER: helper,
       },
