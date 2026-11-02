@@ -20,6 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.22.1-beta (2026-11-02)
+
+## What's Changed
+* Fix minimatch advisory across modern and legacy build tools by @antropos17 in https://github.com/antropos17/Aegis/pull/1225
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.22.0-beta...aegis-v0.22.1-beta
+
 ## 0.22.0-beta (2026-11-01)
 
 ## What's Changed
