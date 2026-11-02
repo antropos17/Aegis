@@ -20,6 +20,7 @@ internal static class PackagedOwnerConsole
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool GetConsoleScreenBufferInfo(IntPtr handle,out BufferInfo info);
     [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] private static extern bool ReadConsoleOutputCharacter(IntPtr handle, [Out] char[] text,uint length,Coord start,out uint read);
     [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] private static extern bool WriteConsoleInput(IntPtr handle,Input[] records,uint length,out uint written);
+    [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] private static extern bool PeekConsoleInput(IntPtr handle,[Out] Input[] records,uint length,out uint read);
     [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] private static extern bool CreateProcess(string app,StringBuilder command,IntPtr a,IntPtr b,bool inherit,uint flags,IntPtr env,string cwd,ref Startup startup,out ProcessInfo process);
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool CloseHandle(IntPtr handle);
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool TerminateProcess(IntPtr handle,uint code);
@@ -62,10 +63,18 @@ internal static class PackagedOwnerConsole
         Need(GetConsoleScreenBufferInfo(output,out info),"real console required");
         ProcessInfo child=Start(launcher,"--profile-root "+Quote(profile)+" --action-mcp-delete-review "+Quote(policy)+" "+Quote(request)+" "+Quote(endpoint),root,false);
         bool forced=false, answered=false, review=false, interrupted=false;uint exit=999;string lastText=null;
+        string lastInput=null;
         Save(root,"started.json",new { pid=child.pid,console=true,scriptedInput=true });
         Stopwatch clock=Stopwatch.StartNew();
         try {
             while(WaitForSingleObject(child.process,0)!=0 && clock.ElapsedMilliseconds<35000) {
+                Input[] pending=new Input[16];uint pendingCount;
+                Need(PeekConsoleInput(input,pending,(uint)pending.Length,out pendingCount),"input metadata observation");
+                if(pendingCount>0) {
+                    ushort[] types=new ushort[pendingCount];for(int i=0;i<pendingCount;i++)types[i]=pending[i].type;
+                    string inputMetadata=Json.Serialize(new { elapsedMs=clock.ElapsedMilliseconds,eventTypes=types });
+                    if(inputMetadata!=lastInput) { File.WriteAllText(Path.Combine(root,"input-events.json"),inputMetadata);lastInput=inputMetadata; }
+                }
                 Need(GetConsoleScreenBufferInfo(output,out info),"console observation");
                 char[] text=new char[Math.Min(32768,info.size.x*info.size.y)];uint count;
                 Need(ReadConsoleOutputCharacter(output,text,(uint)text.Length,new Coord(),out count),"console read");
