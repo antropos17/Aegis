@@ -36,7 +36,7 @@ async function verifyCodexExecutable(selected) {
     process.platform !== 'win32' ||
     typeof selected !== 'string' ||
     selected.length > 1024 ||
-    !/^[A-Za-z]:[\\/][A-Za-z0-9 _&.\\/-]+\.exe$/i.test(selected) ||
+    !/^[A-Za-z]:[\\/][A-Za-z0-9 _&.@\\/-]+\.exe$/i.test(selected) ||
     path.win32.basename(selected).toLowerCase() !== 'codex.exe' ||
     selected.split(/[\\/]/).some((part) => part === '.' || part === '..')
   )

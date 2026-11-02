@@ -8,6 +8,7 @@ import {
   unlinkSync,
   rmdirSync,
   existsSync,
+  mkdirSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -44,7 +45,14 @@ function fixture(hostIsAbsolute = path.isAbsolute) {
   const codexSha256 = 'c'.repeat(64);
   const verifyCodexExecutable = vi.fn(async () => ({ codexPath, codexIdentity, codexSha256 }));
   const nativePath = 'C:\\AEGIS\\codex-hook-profile\\native-' + 'a'.repeat(32);
-  const templateCommand = hookCommand(executable, appPath, policyPath, powershell, undefined, nativePath);
+  const templateCommand = hookCommand(
+    executable,
+    appPath,
+    policyPath,
+    powershell,
+    undefined,
+    nativePath,
+  );
   const profile = Buffer.from(
     JSON.stringify({
       hooks: {
@@ -61,7 +69,14 @@ function fixture(hostIsAbsolute = path.isAbsolute) {
     '1234567890abcdef:1234567890abcdef1234567890abcdef',
     'fedcba0987654321:fedcba0987654321fedcba0987654321',
   ];
-  const command = hookCommand(executable, appPath, policyPath, powershell, hash(policy), nativePath);
+  const command = hookCommand(
+    executable,
+    appPath,
+    policyPath,
+    powershell,
+    hash(policy),
+    nativePath,
+  );
   const token = encodeLaunch({
     profilePath,
     profileIdentity: ids[0],
@@ -233,13 +248,34 @@ it('emits only the validated fixed override through the bounded packaged CLI ent
 
 it('refuses a legacy profile without a separate native directory even when its digest matches', async () => {
   const f = fixture();
-  f.files[0] = Buffer.from(JSON.stringify({ hooks: { PreToolUse: [{ matcher: '^Bash$', hooks: [{
-    type: 'command', timeout: 5,
-    command: hookCommand(f.options.executable, f.options.appPath, 'C:/Project/policy.json', f.options.powershell),
-  }] }] } }));
+  f.files[0] = Buffer.from(
+    JSON.stringify({
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: '^Bash$',
+            hooks: [
+              {
+                type: 'command',
+                timeout: 5,
+                command: hookCommand(
+                  f.options.executable,
+                  f.options.appPath,
+                  'C:/Project/policy.json',
+                  f.options.powershell,
+                ),
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
   const binding = JSON.parse(Buffer.from(f.token, 'base64').toString());
   binding.profileSha256 = hash(f.files[0]);
-  await expect(validatedOverride(encodeLaunch(binding), f.options)).rejects.toThrow('launch-unavailable');
+  await expect(validatedOverride(encodeLaunch(binding), f.options)).rejects.toThrow(
+    'launch-unavailable',
+  );
   expect(f.options.verifyCodexExecutable).not.toHaveBeenCalled();
 });
 
@@ -256,7 +292,9 @@ it.skipIf(process.platform !== 'win32').each([true, false])(
     const root = mkdtempSync(path.join(tmpdir(), 'aegis-codex-terminal-'));
     const validator = path.join(root, 'validator.js');
     const stub = path.join(root, 'stub.cs');
-    const command = path.join(root, 'codex.exe');
+    const npmScope = path.join(root, '@openai');
+    mkdirSync(npmScope);
+    const command = path.join(npmScope, 'codex.exe');
     const marker = path.join(root, 'result.txt');
     try {
       const override = overrideFor(fixture().command);
@@ -310,6 +348,7 @@ it.skipIf(process.platform !== 'win32').each([true, false])(
       else expect(existsSync(marker)).toBe(false);
     } finally {
       for (const file of [validator, stub, command, marker]) if (existsSync(file)) unlinkSync(file);
+      rmdirSync(npmScope);
       expect(path.dirname(root)).toBe(path.resolve(tmpdir()));
       expect(path.basename(root)).toMatch(/^aegis-codex-terminal-/);
       rmdirSync(root);

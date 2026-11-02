@@ -142,8 +142,15 @@ it('reviews the exact hook and selected policy, then installs and removes only t
     expect(JSON.stringify(response)).not.toContain(secret);
   expect(state.dialog).toMatchObject({ defaultId: 0, cancelId: 0 });
   expect(state.dialog.detail).toContain(
-    hookCommand(executable, appPath, selectedPolicyPath, powershell, undefined,
-      readProfile(await fs.readFile(target), { executable, appPath, powershell, target }).nativePath),
+    hookCommand(
+      executable,
+      appPath,
+      selectedPolicyPath,
+      powershell,
+      undefined,
+      readProfile(await fs.readFile(target), { executable, appPath, powershell, target })
+        .nativePath,
+    ),
   );
   expect(state.dialog.detail).toContain('Decoded command script:');
   expect(state.dialog.detail).toContain('Hook failures or timeouts may continue');
@@ -164,13 +171,17 @@ it('creates native hook storage only after consent and retains it after removal'
   state.onReview = null;
   await fs.writeFile(path.join(nativePath, 'Local State'), 'OWNED_NATIVE_CANARY');
   expect((await call('remove')).code).toBe('REMOVED');
-  expect(await fs.readFile(path.join(nativePath, 'Local State'), 'utf8')).toBe('OWNED_NATIVE_CANARY');
+  expect(await fs.readFile(path.join(nativePath, 'Local State'), 'utf8')).toBe(
+    'OWNED_NATIVE_CANARY',
+  );
 });
 
 it('does not create native storage when review is cancelled', async () => {
   state.approved = false;
   expect((await call('install')).code).toBe('CANCELLED');
-  expect((await fs.readdir(path.dirname(target))).filter(name => name.startsWith('native-'))).toEqual([]);
+  expect(
+    (await fs.readdir(path.dirname(target))).filter((name) => name.startsWith('native-')),
+  ).toEqual([]);
   expect(state.writes).toBe(0);
 });
 
@@ -196,7 +207,9 @@ it('refuses a preexisting native directory without adopting its contents', async
   };
   expect((await call('install')).code).toBe('OPERATION_FAILED');
   expect(state.writes).toBe(0);
-  expect(await fs.readFile(path.join(nativePath, 'Local State'), 'utf8')).toBe('FOREIGN_NATIVE_CANARY');
+  expect(await fs.readFile(path.join(nativePath, 'Local State'), 'utf8')).toBe(
+    'FOREIGN_NATIVE_CANARY',
+  );
 });
 
 it('does not write the hook or retain a backup on cancellation', async () => {
@@ -309,7 +322,9 @@ it.runIf(process.platform === 'win32')(
       return handle;
     });
     try {
-      expect((await verifyCodexExecutable(binary)).codexSha256).toBe(digest(Buffer.from('fixture executable, never run')));
+      expect((await verifyCodexExecutable(binary)).codexSha256).toBe(
+        digest(Buffer.from('fixture executable, never run')),
+      );
     } finally {
       intercept.mockRestore();
     }
@@ -345,6 +360,26 @@ it.runIf(process.platform === 'win32')(
     } finally {
       intercept.mockRestore();
     }
+  },
+);
+
+it.runIf(process.platform === 'win32')(
+  'admits an ordinary scoped npm executable while refusing a junction to it',
+  async () => {
+    const folder = path.join(root, 'node_modules', '@openai', 'codex', 'bin');
+    await fs.mkdir(folder, { recursive: true });
+    const binary = path.join(folder, 'codex.exe');
+    const bytes = Buffer.from('Scoped npm executable fixture, never run');
+    await fs.writeFile(binary, bytes);
+    const verified = await verifyCodexExecutable(binary);
+    expect(verified.codexPath).toBe(path.win32.normalize(binary));
+    expect(verified.codexSha256).toBe(digest(bytes));
+    expect(verified.codexIdentity).toMatch(/^\d+:\d+$/);
+    const redirected = path.join(root, 'redirected');
+    await fs.symlink(folder, redirected, 'junction');
+    await expect(verifyCodexExecutable(path.join(redirected, 'codex.exe'))).rejects.toThrow(
+      'CODEX_INVALID',
+    );
   },
 );
 
