@@ -53,6 +53,7 @@ jobs:
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/receipt.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/console.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/input-events.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/fixture-ownership.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/*-failure.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/outer.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/driver.json

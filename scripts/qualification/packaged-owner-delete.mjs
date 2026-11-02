@@ -28,6 +28,30 @@ const receipt = {
   cases: [],
 };
 const read = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
+function ownFixtureMarkers(profile) {
+  // Elevated creators may assign BUILTIN\\Administrators ownership. Normalize
+  // only the five fresh disposable anchors to the actual executing SID.
+  const script = `$ErrorActionPreference='Stop'; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $before=0; $after=0; foreach($name in @('appdata','localappdata','userprofile','home','temp')) { $file=Join-Path (Join-Path $env:AEGIS_QA_PROFILE $name) '.aegis-owner-profile-anchor'; $item=Get-Item -LiteralPath $file -Force; if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Ordinary fresh anchor required'}; $acl=Get-Acl -LiteralPath $file; if($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value){$before++}else{$acl.SetOwner($sid); Set-Acl -LiteralPath $file -AclObject $acl}; if((Get-Acl -LiteralPath $file).GetOwner([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value){$after++} }; if($after -ne 5){throw 'Fixture anchor ownership not established'}; @{alreadyOwned=$before;ownedAfter=$after} | ConvertTo-Json -Compress`;
+  return JSON.parse(
+    execFileSync(
+      path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        Buffer.from(script, 'utf16le').toString('base64'),
+      ],
+      {
+        env: { ...process.env, AEGIS_QA_PROFILE: profile },
+        encoding: 'utf8',
+        timeout: 10000,
+        windowsHide: true,
+        maxBuffer: 4096,
+      },
+    ),
+  );
+}
 function remainingOwnedProcesses() {
   const command =
     '$ErrorActionPreference="Stop"; $root=$env:AEGIS_QA_PACKAGE_ROOT; $helper=$env:AEGIS_QA_HELPER; @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and ($_.ExecutablePath.StartsWith($root,[StringComparison]::OrdinalIgnoreCase) -or $_.ExecutablePath -ieq $helper) } | Select-Object -ExpandProperty ProcessId) | ConvertTo-Json -Compress';
@@ -174,6 +198,8 @@ try {
         'Owned fixture anchor',
       );
     }
+    const fixtureOwnership = ownFixtureMarkers(profile);
+    save(path.join(root, 'fixture-ownership.json'), fixtureOwnership);
     const operation = { kind: 'delete-file', path: target };
     save(request, { schemaVersion: 1, operation });
     save(policy, {
@@ -253,6 +279,7 @@ try {
         actualConsole: true,
         targetAbsent: !exists,
         noOwnedProcesses: true,
+        fixtureOwnership,
         ...observation,
       });
       save(path.join(output, 'receipt.json'), receipt);
