@@ -1,0 +1,20 @@
+{
+  "name": "minimatch",
+  "version": "11.0.3-aegis.1",
+  "private": true,
+  "description": "Callable CommonJS adapter for legacy build tools using the patched minimatch engine",
+  "main": "index.cjs",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs",
+      "require": "./index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "minimatch-engine": "npm:minimatch@11.0.3"
+  }
+}
