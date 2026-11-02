@@ -32,8 +32,15 @@ public sealed class ProtectedGuiManifest
     public static void ValidatePath(string value)
     {
         Need(value != null && PathGrammar.IsMatch(value)); string[] parts = value.Split('/'); Need(parts.Length <= 12);
-        foreach (string part in parts) Need(part.Length > 0 && part != "." && part != ".." && part[0] != ' ' && part[0] != '.' &&
+        bool metadata = RuntimeMetadata(value);
+        foreach (string part in parts) Need(part.Length > 0 && part != "." && part != ".." && part[0] != ' ' &&
+            (part[0] != '.' || (metadata && part == ".version")) &&
             part[part.Length - 1] != ' ' && part[part.Length - 1] != '.' && !Device.IsMatch(part));
+    }
+    private static bool RuntimeMetadata(string value)
+    {
+        return value == "resources/hook-review/runtime/shared/Microsoft.NETCore.App/10.0.10/.version" ||
+            value == "resources/hook-review/runtime/shared/Microsoft.NETCore.App/10.0.14/.version";
     }
     private static void Literal(string text, ref int at, string expected)
     { Need(at <= text.Length - expected.Length && String.CompareOrdinal(text, at, expected, 0, expected.Length) == 0); at += expected.Length; }
@@ -48,7 +55,7 @@ public sealed class ProtectedGuiManifest
         while (at < text.Length && text[at] != ']')
         {
             Match entry = DirectoryRow.Match(text, at); Need(entry.Success && entry.Index == at); string path = entry.Groups[1].Value;
-            ValidatePath(path); Need(names.Add(path) && (previous == null || String.CompareOrdinal(previous, path) < 0));
+            ValidatePath(path); Need(!RuntimeMetadata(path) && names.Add(path) && (previous == null || String.CompareOrdinal(previous, path) < 0));
             previous = path; directories.Add(path); directoryNames.Add(path); Need(directories.Count <= MaximumDirectories); at += entry.Length;
             if (at < text.Length && text[at] == ',') { at++; Need(at < text.Length && text[at] != ']'); } else break;
         }

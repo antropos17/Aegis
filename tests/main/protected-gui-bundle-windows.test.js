@@ -120,6 +120,50 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(capture(value)).toEqual({ refused: false });
       expect(produceGuiManifest(value.source)).toEqual(fs.readFileSync(value.manifest));
     });
+    it.each(['10.0.10', '10.0.14'])(
+      'retains the portable .NET %s version metadata in the complete bundle',
+      (version) => {
+        const value = candidate();
+        const directory = path.join(
+          value.source,
+          'resources/hook-review/runtime/shared/Microsoft.NETCore.App',
+          version,
+        );
+        fs.mkdirSync(directory, { recursive: true });
+        fs.writeFileSync(path.join(directory, '.version'), 'runtime build metadata');
+        fs.writeFileSync(value.manifest, produceGuiManifest(value.source));
+        expect(capture(value)).toEqual({ refused: false });
+      },
+    );
+    it.each(['.env', '.version.', '.other'])(
+      'still refuses unrecognized runtime metadata %s in both producers',
+      (name) => {
+        const value = candidate();
+        const relative = 'resources/hook-review/runtime/shared/Microsoft.NETCore.App/10.0.14/';
+        const directory = path.join(value.source, relative);
+        fs.mkdirSync(directory, { recursive: true });
+        fs.writeFileSync(path.join(directory, '.version'), 'runtime build metadata');
+        const bytes = produceGuiManifest(value.source);
+        fs.renameSync(path.join(directory, '.version'), path.join(directory, name));
+        fs.writeFileSync(
+          value.manifest,
+          bytes.toString().replace(relative + '.version', relative + name),
+        );
+        expect(() => produceGuiManifest(value.source)).toThrow('protected-gui-manifest-refused');
+        expect(capture(value)).toEqual({ refused: true });
+      },
+    );
+    it('refuses runtime metadata represented as a directory', () => {
+      const value = candidate();
+      fs.mkdirSync(
+        path.join(
+          value.source,
+          'resources/hook-review/runtime/shared/Microsoft.NETCore.App/10.0.14/.version',
+        ),
+        { recursive: true },
+      );
+      expect(() => produceGuiManifest(value.source)).toThrow('protected-gui-manifest-refused');
+    });
     it('refuses an unlisted bundle member after the actual manifest producer captured the candidate', () => {
       const value = candidate();
       fs.writeFileSync(path.join(value.source, 'unlisted.dll'), 'unlisted');
