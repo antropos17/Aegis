@@ -1250,6 +1250,8 @@
   "coverage notices": "avisos de cobertura",
   "Filter results": "Filtrar resultados",
   "No records match this filter.": "Nenhum registro corresponde a este filtro.",
+  "{count} of {total} records": "{count} de {total} registros",
+  "{count} of {total} records, page {page} of {pages}": "{count} de {total} registros, página {page} de {pages}",
   "critical": "crítico",
   "info": "informativo",
   "unknown": "desconhecido",
