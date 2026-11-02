@@ -6,6 +6,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Web.Script.Serialization;
+using System.Collections.Generic;
+using System.Security.Principal;
 
 // Owns one real, hidden Windows console. Input is scripted fixture input, not human authentication.
 internal static class PackagedOwnerConsole
@@ -61,6 +63,19 @@ internal static class PackagedOwnerConsole
         string launcher=(string)plan["launcher"], profile=(string)plan["profile"], policy=(string)plan["policy"], request=(string)plan["request"], endpoint=(string)plan["endpoint"];
         IntPtr input=GetStdHandle(-10), output=GetStdHandle(-12);BufferInfo info;
         Need(GetConsoleScreenBufferInfo(output,out info),"real console required");
+        var listing=new List<bool>();string ancestor=profile;
+        while(ancestor!=null && listing.Count<32) {
+            bool readable=false;
+            try { using(var entries=Directory.EnumerateFileSystemEntries(ancestor).GetEnumerator()) { entries.MoveNext();readable=true; } } catch { }
+            listing.Add(readable);var parent=Directory.GetParent(ancestor);ancestor=parent==null?null:parent.FullName;
+        }
+        int ownedMarkers=0;
+        using(var identity=WindowsIdentity.GetCurrent()) {
+            foreach(string name in new[]{"appdata","localappdata","userprofile","home","temp"}) {
+                try { var owner=File.GetAccessControl(Path.Combine(profile,name,".aegis-owner-profile-anchor")).GetOwner(typeof(SecurityIdentifier)); if(owner.Equals(identity.User)) ownedMarkers++; } catch { }
+            }
+        }
+        Save(root,"profile-preflight.json",new { ancestorListingAvailable=listing.ToArray(),ownedMarkers=ownedMarkers,appDataKnown=!String.IsNullOrEmpty(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)),localAppDataKnown=!String.IsNullOrEmpty(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)) });
         ProcessInfo child=Start(launcher,"--profile-root "+Quote(profile)+" --action-mcp-delete-review "+Quote(policy)+" "+Quote(request)+" "+Quote(endpoint),root,false);
         bool forced=false, answered=false, review=false, interrupted=false;uint exit=999;string lastText=null;
         string lastInput=null;

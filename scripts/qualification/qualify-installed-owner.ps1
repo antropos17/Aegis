@@ -3,7 +3,9 @@ $ErrorActionPreference = 'Stop'
 # This script creates an account only on a disposable GitHub-hosted runner.
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Disposable hosted runner required' }
 $Root = [IO.Path]::GetFullPath($Root)
-if (-not $Root.StartsWith(([IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'Runner-local root required' }
+if ($env:GITHUB_RUN_ID -notmatch '^\d+$' -or $env:GITHUB_RUN_ATTEMPT -notmatch '^\d+$') { throw 'Invalid run identity' }
+$expected=Join-Path ([IO.Path]::GetPathRoot($env:RUNNER_TEMP)) ('aegis-owner-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+if (-not $Root.Equals($expected,[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $Root -Force).LinkType) { throw 'Exact runner-local task root required' }
 if (-not (Test-Path -LiteralPath $Root -PathType Container)) { throw 'Allocated root required' }
 $receipt = [ordered]@{ schema='aegis-installed-owner/1'; source=(& git rev-parse HEAD); status='FAIL'; installed=$false; differentSid=$false; ownerRefused=$false; accountRemoved=$false; profileRemoved=$false; uninstalled=$false; cleanup=$false }
 $account = 'AegisQ' + [Guid]::NewGuid().ToString('N').Substring(0,10)
