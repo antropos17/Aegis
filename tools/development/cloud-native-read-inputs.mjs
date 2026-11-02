@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import { parseArgs } from 'node:util';
+import { resolveCloudPackageRoot } from './cloud-node-package.mjs';
 import {
   discoverGitLayout,
   copyPortableGit,
@@ -136,29 +136,10 @@ copy(
   path.join(out, 'guest.ps1'),
 );
 const seen = new Set();
-function packageRoot(request, owner) {
-  const require = createRequire(path.join(owner, 'package.json'));
-  let entry;
-  try {
-    entry = require.resolve(request + '/package.json');
-  } catch {
-    entry = require.resolve(request);
-  }
-  for (
-    let folder = path.dirname(entry);
-    folder !== path.dirname(folder);
-    folder = path.dirname(folder)
-  ) {
-    const file = path.join(folder, 'package.json');
-    if (fs.existsSync(file) && JSON.parse(fs.readFileSync(file, 'utf8')).name === request)
-      return folder;
-  }
-  throw new Error('Package root unavailable');
-}
 function dependency(name, owner, optional = false) {
   let folder;
   try {
-    folder = packageRoot(name, owner);
+    folder = resolveCloudPackageRoot(name, owner);
   } catch (error) {
     if (optional) return;
     throw error;
