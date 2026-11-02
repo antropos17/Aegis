@@ -57,6 +57,18 @@ $ErrorActionPreference='Stop'
 $plan=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'plan.json') -Raw | ConvertFrom-Json
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 if($sid -ne $plan.foreignSid -or $sid -eq $plan.ownerSid) { throw 'Actual foreign token mismatch' }
+# A freshly loaded disposable profile has not run Explorer. Materialize its
+# registered special folders before requiring the production known-folder gate.
+# Do not substitute fixture paths or relax the launcher's profile validation.
+$actualProfile=[Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile,[Environment+SpecialFolderOption]::DoNotVerify)
+$users=Join-Path ([IO.Path]::GetPathRoot($env:WINDIR)) 'Users'
+if([string]::IsNullOrEmpty($actualProfile) -or -not [IO.Path]::GetFullPath($actualProfile).StartsWith($users+'\',[StringComparison]::OrdinalIgnoreCase) -or (Split-Path $actualProfile -Leaf) -notlike 'AegisQ*'){throw 'Disposable known-folder profile boundary refused'}
+foreach($folder in @([Environment+SpecialFolder]::ApplicationData,[Environment+SpecialFolder]::LocalApplicationData)) {
+    $path=[Environment]::GetFolderPath($folder,[Environment+SpecialFolderOption]::DoNotVerify)
+    if([string]::IsNullOrEmpty($path) -or -not [IO.Path]::GetFullPath($path).StartsWith($actualProfile+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Disposable known-folder path refused'}
+    $null=[IO.Directory]::CreateDirectory($path)
+    if([string]::IsNullOrEmpty([Environment]::GetFolderPath($folder))){throw 'Disposable known-folder initialization failed'}
+}
 # A positive control under the same real foreign token must reach a genuine
 # console preview using its own anchors, before a foreign-owner refusal counts.
 $positive=Join-Path $PSScriptRoot 'positive'
