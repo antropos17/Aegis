@@ -286,6 +286,18 @@ it('returns an exact private launch binding after rechecking both native identit
   expect(state.dialog.detail).toContain('C:\\Tools\\codex.exe');
   expect(state.dialog.detail).toContain('a'.repeat(64));
   expect(state.dialog.detail).toContain(`'${digest(policyBytes)}'`);
+  const selected = readProfile(profileBytes, { executable, appPath, powershell, target });
+  expect(state.dialog.detail).toContain(`'--user-data-dir=${selected.nativePath}'`);
+  expect(state.dialog.detail).toContain(
+    hookCommand(
+      executable,
+      appPath,
+      selected.policy,
+      powershell,
+      digest(policyBytes),
+      selected.nativePath,
+    ),
+  );
   expect(state.dialog.detail).toContain('session hook denies if its policy bytes change');
 });
 
