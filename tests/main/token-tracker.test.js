@@ -85,9 +85,28 @@ describe('token-tracker', () => {
 
     it('keeps unverified listed rates separate from measured token counts', () => {
       const rec = trackTokens(101, { model: OTHER_MODEL, inputTokens: 1000, outputTokens: 200 });
-      expect(rec).toMatchObject({ inputTokens: 1000, outputTokens: 200, estimated: false, pricingEstimated: true });
+      expect(rec).toMatchObject({
+        inputTokens: 1000,
+        outputTokens: 200,
+        estimated: false,
+        pricingEstimated: true,
+      });
       expect(MODEL_PRICING[KNOWN_MODEL].verifiedAt).toBe('2026-10-01');
       expect(MODEL_PRICING[OTHER_MODEL].verifiedAt).toBeUndefined();
+      expect(MODEL_PRICING['claude-opus-4-1'].verifiedAt).toBeUndefined();
+
+      const combined = trackTokens(101, {
+        model: KNOWN_MODEL,
+        inputTokens: 500,
+        outputTokens: 0,
+      });
+      expect(combined).toMatchObject({
+        inputTokens: 1500,
+        outputTokens: 200,
+        totalTokens: 1700,
+        estimated: false,
+        pricingEstimated: true,
+      });
     });
 
     it('honors a caller-supplied estimated:true flag', () => {
@@ -106,7 +125,13 @@ describe('token-tracker', () => {
         inputTokens: 1000,
         outputTokens: 200,
       });
-      expect(rec.estimated).toBe(true);
+      expect(rec).toMatchObject({
+        inputTokens: 1000,
+        outputTokens: 200,
+        totalTokens: 1200,
+        estimated: true,
+        pricingEstimated: true,
+      });
     });
   });
 
