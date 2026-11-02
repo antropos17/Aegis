@@ -5,7 +5,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hoste
 $Root = [IO.Path]::GetFullPath($Root)
 if (-not $Root.StartsWith(([IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) { throw 'Runner-local root required' }
 if (-not (Test-Path -LiteralPath $Root -PathType Container)) { throw 'Allocated root required' }
-$receipt = [ordered]@{ schema='aegis-installed-owner/1'; source=(& git rev-parse HEAD); status='FAIL'; installed=$false; differentSid=$false; ownerRefused=$false; accountRemoved=$false; uninstalled=$false; cleanup=$false }
+$receipt = [ordered]@{ schema='aegis-installed-owner/1'; source=(& git rev-parse HEAD); status='FAIL'; installed=$false; differentSid=$false; ownerRefused=$false; accountRemoved=$false; profileRemoved=$false; uninstalled=$false; cleanup=$false }
 $account = 'AegisQ' + [Guid]::NewGuid().ToString('N').Substring(0,10)
 $created = $false
 $installedExe = Join-Path $Root 'installed/AEGIS - AI Monitoring & Threat Detection.exe'
@@ -47,7 +47,7 @@ try {
     & icacls $foreign /grant ('*' + $foreignSid + ':(OI)(CI)M') /Q | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'QA result ACL failed' }
     $profile = Join-Path $Root 'delete/reject/profile'
-    $plan = @{ ownerSid=$ownerSid; foreignSid=$foreignSid; launcher=(Join-Path $install 'resources/sidecar/aegis-owner-console.exe'); profile=$profile; policy=(Join-Path $Root 'delete/reject/policy.json'); request=(Join-Path $Root 'delete/reject/request.json'); endpoint=(Join-Path $foreign 'endpoint.json'); result=(Join-Path $foreign 'result.json') }
+    $plan = @{ ownerSid=$ownerSid; foreignSid=$foreignSid; launcher=(Join-Path $install 'resources/sidecar/aegis-owner-console.exe'); exe=$installedExe; node=(Get-Command node).Source; driver=(Join-Path $PSScriptRoot 'packaged-owner-delete.mjs'); helper=$helper; source=$receipt.source; profile=$profile; policy=(Join-Path $Root 'delete/reject/policy.json'); request=(Join-Path $Root 'delete/reject/request.json'); endpoint=(Join-Path $foreign 'endpoint.json'); result=(Join-Path $foreign 'result.json') }
     $plan | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $foreign 'plan.json') -Encoding utf8
     $script = Join-Path $foreign 'attempt.ps1'
     @'
@@ -55,25 +55,56 @@ $ErrorActionPreference='Stop'
 $plan=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'plan.json') -Raw | ConvertFrom-Json
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 if($sid -ne $plan.foreignSid -or $sid -eq $plan.ownerSid) { throw 'Actual foreign token mismatch' }
-& $plan.launcher --profile-root $plan.profile --action-mcp-delete-review $plan.policy $plan.request $plan.endpoint
-$code=$LASTEXITCODE
-@{sid=$sid;exitCode=$code;endpointCreated=(Test-Path -LiteralPath $plan.endpoint)} | ConvertTo-Json | Set-Content -LiteralPath $plan.result -Encoding utf8
-if($code -ne 2 -or (Test-Path -LiteralPath $plan.endpoint)) { exit 1 }
+# A positive control under the same real foreign token must reach a genuine
+# console preview using its own anchors, before a foreign-owner refusal counts.
+$positive=Join-Path $PSScriptRoot 'positive'
+& $plan.node $plan.driver $plan.exe $positive $plan.helper $plan.source reject
+if($LASTEXITCODE -ne 0){throw 'Foreign-token positive console control failed'}
+$accepted=Get-Content -LiteralPath (Join-Path $positive 'receipt.json') -Raw|ConvertFrom-Json
+if($accepted.status -ne 'PASS' -or $accepted.cases.Count -ne 1 -or -not $accepted.cases[0].reviewObserved -or -not $accepted.cases[0].noOwnedProcesses){throw 'Foreign-token positive evidence incomplete'}
+foreach($name in @('appdata','localappdata','userprofile','home','temp')) {
+    $anchor=Join-Path (Join-Path $plan.profile $name) '.aegis-owner-profile-anchor'
+    $null=[IO.File]::ReadAllBytes($anchor)
+    $owner=[IO.File]::GetAccessControl($anchor).GetOwner([Security.Principal.SecurityIdentifier]).Value
+    if($owner -ne $plan.ownerSid -or $owner -eq $sid){throw 'Original owner mismatch or unreadable fixture'}
+}
+$negative=Join-Path $PSScriptRoot 'negative'
+New-Item -ItemType Directory -Path $negative|Out-Null
+@{launcher=$plan.launcher;profile=$plan.profile;policy=$plan.policy;request=$plan.request;endpoint=$plan.endpoint}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $negative 'plan.json') -Encoding utf8
+& $plan.helper outer $negative
+if($LASTEXITCODE -ne 0){throw 'Foreign-token refusal observer failed'}
+$refused=Get-Content -LiteralPath (Join-Path $negative 'console.json') -Raw|ConvertFrom-Json
+@{sid=$sid;exitCode=$refused.exitCode;endpointCreated=(Test-Path -LiteralPath $plan.endpoint);positiveConsole=$true;negativeForced=$refused.forced;negativePreview=$refused.reviewObserved;originalAnchorsReadable=$true} | ConvertTo-Json | Set-Content -LiteralPath $plan.result -Encoding utf8
+if($refused.exitCode -ne 2 -or $refused.forced -or $refused.reviewObserved -or (Test-Path -LiteralPath $plan.endpoint)) { exit 1 }
 '@ | Set-Content -LiteralPath $script -Encoding utf8
     $credential = [PSCredential]::new(($env:COMPUTERNAME + '\' + $account), $password)
     $target=Join-Path $Root 'delete/reject/owned-target.txt'
     $before=(Get-FileHash -LiteralPath $target).Hash
-    Wait-Owned (Start-Process -FilePath "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" -Credential $credential -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-File', ('"' + $script + '"')) -WorkingDirectory $foreign -PassThru -WindowStyle Hidden) 20000
+    Wait-Owned (Start-Process -FilePath "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" -Credential $credential -LoadUserProfile -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-File', ('"' + $script + '"')) -WorkingDirectory $foreign -PassThru -WindowStyle Hidden) 90000
     $result=Get-Content -LiteralPath $plan.result -Raw | ConvertFrom-Json
-    if ($result.sid -ne $foreignSid -or $result.exitCode -ne 2 -or $result.endpointCreated -or (Get-FileHash -LiteralPath $target).Hash -ne $before) { throw 'Different-account refusal oracle failed' }
+    if ($result.sid -ne $foreignSid -or $result.exitCode -ne 2 -or -not $result.positiveConsole -or -not $result.originalAnchorsReadable -or $result.negativeForced -or $result.negativePreview -or $result.endpointCreated -or (Get-FileHash -LiteralPath $target).Hash -ne $before) { throw 'Different-account refusal oracle failed' }
     $receipt.differentSid=$true; $receipt.ownerRefused=$true
-    @{differentSid=$true;exitCode=$result.exitCode;endpointCreated=$false;targetUnchanged=$true;scope='Actual second-account token; original-owner selected profile refused before endpoint creation. No human authentication claim.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Root 'foreign-result.json')
+    @{differentSid=$true;positiveConsole=$true;originalAnchorsReadable=$true;exitCode=$result.exitCode;endpointCreated=$false;targetUnchanged=$true;scope='Same actual second-account token accepts its own profile through real console/MCP, then refuses readable original-owner anchors before endpoint creation. No human authentication claim.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Root 'foreign-result.json')
     $receipt.status='PASS'
 } catch {
     $receipt.error=$_.Exception.Message
     throw
 } finally {
-    if ($created) { Remove-LocalUser -Name $account; $receipt.accountRemoved=($null -eq (Get-LocalUser -Name $account -ErrorAction SilentlyContinue)) }
+    if ($created) {
+        try {
+            $ownedProfiles=@(Get-CimInstance Win32_UserProfile -Filter ("SID='"+$foreignSid+"'"))
+            foreach($ownedProfile in $ownedProfiles) {
+                $path=[IO.Path]::GetFullPath($ownedProfile.LocalPath)
+                $users=[IO.Path]::GetFullPath((Join-Path $env:SystemDrive 'Users')).TrimEnd('\')+'\'
+                if($ownedProfile.Loaded -or $ownedProfile.SID -ne $foreignSid -or $foreignSid -eq [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or -not $path.StartsWith($users,[StringComparison]::OrdinalIgnoreCase) -or -not (Split-Path $path -Leaf).StartsWith($account,[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $path -Force).LinkType){throw 'Disposable account profile cleanup boundary refused'}
+                Remove-CimInstance -InputObject $ownedProfile
+                if(Test-Path -LiteralPath $path){throw 'Disposable account profile remains'}
+            }
+            $receipt.profileRemoved=(@(Get-CimInstance Win32_UserProfile -Filter ("SID='"+$foreignSid+"'")).Count -eq 0)
+            Remove-LocalUser -Name $account
+            $receipt.accountRemoved=($null -eq (Get-LocalUser -Name $account -ErrorAction SilentlyContinue))
+        } catch { $receipt.accountCleanupError=$_.Exception.Message; $receipt.status='FAIL' }
+    }
     if (Test-Path -LiteralPath $install) {
         $uninstallers=@(Get-ChildItem -LiteralPath $install -Filter 'Uninstall*.exe' -File)
         if ($uninstallers.Count -eq 1) {
@@ -84,7 +115,7 @@ if($code -ne 2 -or (Test-Path -LiteralPath $plan.endpoint)) { exit 1 }
     }
     $receipt.uninstalled= -not (Test-Path -LiteralPath $installedExe)
     $remaining=@(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith(($install + '\'),[StringComparison]::OrdinalIgnoreCase) })
-    $receipt.cleanup=($remaining.Count -eq 0 -and $receipt.uninstalled -and (-not $created -or $receipt.accountRemoved))
+    $receipt.cleanup=($remaining.Count -eq 0 -and $receipt.uninstalled -and (-not $created -or ($receipt.accountRemoved -and $receipt.profileRemoved)))
     if (-not $receipt.cleanup) { $receipt.status='FAIL' }
     $receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Root 'installed-receipt.json')
     Get-PSDrive C,D | Select-Object Name,Free

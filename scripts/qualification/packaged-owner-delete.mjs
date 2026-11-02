@@ -7,7 +7,11 @@ import { spawn, execFileSync } from 'node:child_process';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-const [exe, output, helper] = process.argv.slice(2);
+const [exe, output, helper, source, ...selectedCases] = process.argv.slice(2);
+const allCases = ['approve', 'reject', 'policy-change', 'cancel', 'interrupt'];
+assert(source === undefined || /^[a-f0-9]{40}$/.test(source));
+assert(selectedCases.every((scenario) => allCases.includes(scenario)));
+assert(new Set(selectedCases).size === selectedCases.length);
 assert(process.platform === 'win32' && [exe, output, helper].every((p) => p && path.isAbsolute(p)));
 assert(!fs.existsSync(output), 'New task-owned output required');
 fs.mkdirSync(output);
@@ -16,7 +20,7 @@ const save = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null,
 const receipt = {
   schema: 'aegis-packaged-owner-delete/1',
   status: 'FAIL',
-  source: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  source: source || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   package: {
     exeSha256: hash(exe),
     archiveSha256: hash(path.join(path.dirname(exe), 'resources/app.asar')),
@@ -188,7 +192,7 @@ async function connect(endpoint) {
   return { socket, request, closedResult };
 }
 try {
-  for (const scenario of ['approve', 'reject', 'policy-change', 'cancel', 'interrupt']) {
+  for (const scenario of selectedCases.length ? selectedCases : allCases) {
     const root = path.join(output, scenario);
     fs.mkdirSync(root);
     const target = path.join(root, 'owned-target.txt');
@@ -255,7 +259,7 @@ try {
         );
       const result = await Promise.race([
         outcome,
-        pause(15000).then(() => {
+        pause(15000, undefined, { ref: false }).then(() => {
           throw Error('MCP outcome timeout');
         }),
       ]);

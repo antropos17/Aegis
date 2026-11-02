@@ -58,5 +58,8 @@ jobs:
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/outer.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/driver.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign-result.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/result.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/receipt.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/negative/console.json
           if-no-files-found: warn
           retention-days: 7
