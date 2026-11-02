@@ -40,7 +40,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Build private installer without publication
-        run: node node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never -c.nsis.runAfterFinish=false "-c.directories.output=$env:AEGIS_OWNER_QA_ROOT\package"
+        run: node node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never '-c.nsis.runAfterFinish=false' "-c.directories.output=$env:AEGIS_OWNER_QA_ROOT\package"
       - name: Qualify installed deletion and different-account refusal
         run: ./scripts/qualification/qualify-installed-owner.ps1 -Root $env:AEGIS_OWNER_QA_ROOT
       - name: Upload bounded qualification receipts
