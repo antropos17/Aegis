@@ -1643,6 +1643,70 @@ describe('ipc-handlers', () => {
       expect(mockExporter.generateReport).toHaveBeenCalledOnce();
     });
 
+    function deferReport() {
+      let finish;
+      mockExporter.generateReport.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      return finish;
+    }
+
+    it.each([
+      [
+        'destroyed window',
+        ({ window }) => {
+          window.isDestroyed.mockReturnValue(true);
+        },
+      ],
+      [
+        'destroyed sender',
+        ({ contents }) => {
+          contents.isDestroyed.mockReturnValue(true);
+        },
+      ],
+      [
+        'navigated frame',
+        ({ frame }) => {
+          frame.url = 'file:///foreign.html';
+        },
+      ],
+      [
+        'replaced top-level frame',
+        ({ contents }) => {
+          contents.mainFrame = { url: 'file:///foreign.html', isDestroyed: () => false };
+        },
+      ],
+    ])('withholds the finished report path after a %s', async (_label, loseOwnership) => {
+      const owner = registerOwnedRenderer();
+      const finishReport = deferReport();
+      const pending = getHandler('generate-report')(owner.event);
+      loseOwnership(owner);
+      finishReport({ success: true, path: 'private-report-canary.html' });
+      expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+    });
+
+    it('withholds the finished report path from a replaced main window', async () => {
+      const { event, window } = registerOwnedRenderer();
+      let currentWindow = window;
+      ipcHandlers.init({ getWindow: () => currentWindow });
+      const finishReport = deferReport();
+      const pending = getHandler('generate-report')(event);
+      // The replacement serves the same document, so only window identity differs.
+      currentWindow = { webContents: window.webContents, isDestroyed: () => false };
+      finishReport({ success: true, path: 'private-report-canary.html' });
+      expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+    });
+
+    it('returns the finished report path to its unchanged owner', async () => {
+      const { event } = registerOwnedRenderer();
+      const finishReport = deferReport();
+      const pending = getHandler('generate-report')(event);
+      finishReport({ success: true, path: 'private-report-fixture.html' });
+      expect(await pending).toEqual({ success: true, path: 'private-report-fixture.html' });
+    });
+
     it('redacts a failed generate-report exception in logs and IPC', async () => {
       const { event } = registerOwnedRenderer();
       const privatePath = path.join(os.tmpdir(), 'private-report-canary.html');

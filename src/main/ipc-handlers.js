@@ -307,10 +307,11 @@ function register() {
     }
   });
   ipcMain.handle('generate-report', async (event) => {
-    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-      return { success: false, error: 'Renderer request denied' };
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
       const data = await exporter.generateReport();
+      if (!stillOwned(event, window)) return denied();
       return data;
     } catch (_) {
       logger.error('IPC generate-report failed');
