@@ -26,7 +26,8 @@ jobs:
       - name: Allocate disposable runner storage
         run: |
           $ErrorActionPreference = 'Stop'
-          $root = Join-Path $env:RUNNER_TEMP ('aegis-owner-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if ($env:GITHUB_RUN_ID -notmatch '^\d+$' -or $env:GITHUB_RUN_ATTEMPT -notmatch '^\d+$') { throw 'Invalid run identity' }
+          $root = Join-Path ([IO.Path]::GetPathRoot($env:RUNNER_TEMP)) ('aegis-owner-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
           if (Test-Path -LiteralPath $root) { throw 'Existing qualification directory' }
           New-Item -ItemType Directory -Path $root,(Join-Path $root 'temp') | Out-Null
           @("AEGIS_OWNER_QA_ROOT=$root", "TEMP=$root\temp", "TMP=$root\temp", "npm_config_cache=$root\npm-cache", "NUGET_PACKAGES=$root\nuget", "ELECTRON_CACHE=$root\electron", "ELECTRON_BUILDER_CACHE=$root\builder") | Add-Content -LiteralPath $env:GITHUB_ENV
@@ -40,7 +41,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Build private installer without publication
-        run: node node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never -c.nsis.runAfterFinish=false "-c.directories.output=$env:AEGIS_OWNER_QA_ROOT\package"
+        run: node node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never '-c.nsis.runAfterFinish=false' "-c.directories.output=$env:AEGIS_OWNER_QA_ROOT\package"
       - name: Qualify installed deletion and different-account refusal
         run: ./scripts/qualification/qualify-installed-owner.ps1 -Root $env:AEGIS_OWNER_QA_ROOT
       - name: Upload bounded qualification receipts
@@ -53,9 +54,21 @@ jobs:
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/receipt.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/console.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/input-events.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/fixture-ownership.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/profile-preflight.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/*-failure.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/outer.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/delete/*/driver.json
             ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign-result.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/result.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/initialization-failure.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/receipt.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/profile-preflight.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/fixture-ownership.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/console.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/*-failure.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/outer.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/positive/*/input-events.json
+            ${{ env.AEGIS_OWNER_QA_ROOT }}/foreign/negative/console.json
           if-no-files-found: warn
           retention-days: 7

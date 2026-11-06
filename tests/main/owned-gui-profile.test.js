@@ -63,7 +63,7 @@ function loadMain(argv, app, onCli = () => {}) {
   Module._load = function (request, parent) {
     if (request === 'electron') { electronLoads++; return electron; }
     if (request === './cli' && parent?.filename === mainPath) {
-      return { handleCLI: () => { onCli(); return new Promise(() => {}); } };
+      return { handleCLI: (...args) => { onCli(...args); return new Promise(() => {}); } };
     }
     return originalLoad.apply(this, arguments);
   };
@@ -77,6 +77,33 @@ function loadMain(argv, app, onCli = () => {}) {
 }
 
 describe('owned GUI profile storage selector (no enrollment authority)', () => {
+  it('passes selected CLI arguments and captured owner bootstrap without exposing bootstrap secrets to descendants', () => {
+    const keys = ['AEGIS_OWNER_PIPE', 'AEGIS_OWNER_SECRET', 'AEGIS_OWNER_PROFILE_ROOT'];
+    const previous = keys.map((key) => process.env[key]);
+    try {
+      process.env.AEGIS_OWNER_PIPE = 'fixture-owner-pipe';
+      process.env.AEGIS_OWNER_SECRET = 'fixture-owner-secret';
+      process.env.AEGIS_OWNER_PROFILE_ROOT = profile;
+      const app = appProbe();
+      const cli = vi.fn(() => {
+        expect(keys.map((key) => process.env[key])).toEqual([undefined, undefined, undefined]);
+      });
+      const args = ['--action-mcp-delete-review', 'fixture-policy'];
+      expect(loadMain(['node', 'main.js', ...args], app, cli)).toBe(0);
+      expect(cli).toHaveBeenCalledExactlyOnceWith(args, {
+        ownerConsoleBootstrap: expect.objectContaining({
+          pipe: 'fixture-owner-pipe', secret: 'fixture-owner-secret', profileRoot: profile,
+        }),
+      });
+      expect(app.setPath).not.toHaveBeenCalled();
+      expect(app.getPath).not.toHaveBeenCalled();
+    } finally {
+      keys.forEach((key, index) => {
+        if (previous[index] === undefined) delete process.env[key];
+        else process.env[key] = previous[index];
+      });
+    }
+  });
   it('leaves ordinary startup arguments and application paths untouched when absent', () => {
     const app = appProbe();
     expect(api.configureOwnedGuiProfile(['main.js', '--help'], app)).toBe(false);

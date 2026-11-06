@@ -27,6 +27,7 @@ async function handleActionMcpReview(args, options = {}) {
   const deps = testDeps || {};
   const catalog = args[0] === '--action-mcp-catalog-review';
   const deletion = args[0] === '--action-mcp-delete-review';
+  const ownerTerminal = deletion && options.terminal ? options.terminal : terminal;
   if (
     args.length !== (catalog ? 3 : 4) ||
     (!catalog && !deletion && args[0] !== '--action-mcp-review') ||
@@ -37,7 +38,7 @@ async function handleActionMcpReview(args, options = {}) {
     ? { catalogPath: args[1] }
     : { policyPath: args[1], requestPath: args[2] };
   const endpointPath = args[catalog ? 2 : 3];
-  if (!(deps.available || terminal.isTerminalAvailable)()) return 2;
+  if (!(deps.available || ownerTerminal.isTerminalAvailable)()) return 2;
   const controller = new AbortController();
   const host = deps.process || process;
   const output = deps.output || process.stdout;
@@ -72,11 +73,11 @@ async function handleActionMcpReview(args, options = {}) {
   if (signal?.aborted) stop();
   output.on?.('error', stop);
   output.on?.('close', stop);
-  const stopWatching = (deps.watchTerminal || terminal.watchTerminalLifetime)(stop);
+  const stopWatching = (deps.watchTerminal || ownerTerminal.watchTerminalLifetime)(stop);
   host.on('SIGINT', stop);
   host.on('SIGTERM', stop);
   // Monitor EOF while waiting for a client; release this reader before prompting.
-  let stopIdleInput = (deps.monitorInput || terminal.monitorTerminalInput)(stop);
+  let stopIdleInput = (deps.monitorInput || ownerTerminal.monitorTerminalInput)(stop);
   const peerConnected = (peer) => {
     if (closed || accepted || ++attempts > LIMITS.connections || pending.size >= LIMITS.pending) {
       peer.on('error', () => {});
@@ -144,6 +145,8 @@ async function handleActionMcpReview(args, options = {}) {
               stopIdleInput();
               stopIdleInput = () => {};
               try {
+                if (deletion && options.terminal)
+                  parameters[2] = { ...parameters[2], terminal: ownerTerminal };
                 return await (
                   deletion
                     ? deps.deleteFile || require('./action-delete-file').deleteSelectedFile
@@ -151,7 +154,7 @@ async function handleActionMcpReview(args, options = {}) {
                 )(...parameters);
               } finally {
                 if (!closed)
-                  stopIdleInput = (deps.monitorInput || terminal.monitorTerminalInput)(stop);
+                  stopIdleInput = (deps.monitorInput || ownerTerminal.monitorTerminalInput)(stop);
               }
             },
             signal: controller.signal,

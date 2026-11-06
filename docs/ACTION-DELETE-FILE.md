@@ -16,6 +16,55 @@ a terminal broker with fixed policy, request and new endpoint paths:
 node src/main/main.js --action-mcp-delete-review /absolute/policy.json /absolute/request.json /private/newendpoint.json
 ```
 
+On Windows, the installed application also provides an explicit native owner
+console launcher at `resources/sidecar/aegis-owner-console.exe` under the
+installation directory. Start that executable from a console and pass the same
+`--action-mcp-delete-review` arguments. Its original standard input and standard
+error must both be console handles; redirected or missing handles are refused.
+The launcher runs one review attempt per session, so start a new session for a
+further attempt. The response is not echoed. The optional `--observe` argument
+works as on the source route.
+
+To choose explicit profile paths, place `--profile-root <absolute-directory>`
+before the review flag. The root must be on a local fixed NTFS volume and must
+already contain directories named
+`appdata`, `localappdata`, `userprofile`, `home`, and `temp`. Each directory must
+already contain a regular, non-link file named `.aegis-owner-profile-anchor`,
+owned by the current account and with exactly one hard link.
+The launcher retains these file and directory identities without reading anchor
+contents, refuses links and junctions, and shows the selected root and mappings
+in the review. The handles remain held through
+confirmed Job cleanup; if cleanup cannot be confirmed, the launcher fails and
+cannot guarantee custody for any process still alive. Invalid selections are
+refused; the launcher does not substitute the account profile. This selects environment paths
+for the launched route and delete helper; it is not a filesystem sandbox and does
+not prevent Windows known-folder APIs or same-account code from accessing other
+locations. Without `--profile-root`, the launcher does not claim profile isolation.
+Retained ancestor handles deny renaming and can prevent exclusive opens until the
+session closes; ordinary shared writes to those ancestors remain available.
+
+For example, with those five directories and anchor files already created under a
+private scratch root, start the launcher from PowerShell using your actual
+installation and paths:
+
+```powershell
+& 'C:\path\to\AEGIS\resources\sidecar\aegis-owner-console.exe' --profile-root 'X:\private\profile-root' --action-mcp-delete-review 'X:\private\policy.json' 'X:\private\request.json' 'X:\private\newendpoint.json'
+```
+
+The launcher itself is a .NET Framework executable: its runtime initializes before
+the launcher can construct the restricted child environment. Start it from a
+trusted environment; inherited CLR profiling or runtime settings can affect that
+initialization.
+
+The launcher checks the original handles before starting the packaged app and
+uses a bounded, authenticated local channel to a supervised console worker. A
+console response is not human authentication: a local process may automate a
+console, and a completed console write does not prove a person saw the preview.
+Console input does not establish physical key timing. Same-account injection,
+handle duplication and modification of installed binaries are outside this
+boundary. An abrupt shutdown may prevent a final report, and cancellation after
+the native delete begins cannot undo an already completed deletion.
+
 Configure the intended client to use the existing
 [review relay](ACTION-MCP-REVIEW.md) with
 `--action-mcp-connect /private/newendpoint.json`. The
@@ -68,7 +117,10 @@ The request and policy are bounded JSON files selected by the operator:
 All fields are closed. The rule must name the identical path; no prefix, glob,
 command string or directory recursion is accepted. `allow` still requires the
 terminal challenge. `deny`, an absent rule, missing terminal, refusal, timeout,
-input failure and cancellation before mutation admission prevent the deletion. The
+and an input failure or cancellation observed before mutation admission prevent
+the deletion. A console or transport loss can still be in flight when the native
+commit begins. The pre-commit health check is a point-in-time observation, not
+an atomic barrier against a concurrent loss. The
 selected policy and request are captured as private byte bindings and checked
 again after confirmation. The target must be an ordinary file with directory
 parents that are not links or junctions. Its filesystem identity, size and

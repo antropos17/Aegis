@@ -33,20 +33,34 @@ function assetsRoot() {
   return path.resolve(__dirname, '..', '..', 'build', 'hook-review');
 }
 
+function selectedDeleteEnvironment(base, profileEnvironment) {
+  const profile = {};
+  if (profileEnvironment !== undefined) {
+    for (const key of ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP']) {
+      const value = profileEnvironment[key];
+      if (typeof value !== 'string' || !path.win32.isAbsolute(value) || value.includes('\0'))
+        throw failure();
+      profile[key] = value;
+    }
+  }
+  return { ...base, ...profile };
+}
+
 /** Open the prepared Windows native deletion capability before owner confirmation.
  * @param {string} target Selected absolute target. @returns {Promise<object>} One-shot private session.
  * @since v0.21.0 */
-async function openWindowsDelete(target) {
+async function openWindowsDelete(target, { profileEnvironment } = {}) {
   let pipe;
   try {
     privateMode();
     const selected = await loadProfileAssets(assetsRoot());
     if (!selected) throw failure();
     const assets = qualifyAssets(selected);
+    const environment = selectedDeleteEnvironment(assets.env, profileEnvironment);
     privateMode();
     const child = spawn(assets.executable, assets.args, {
       cwd: assets.cwd,
-      env: assets.env,
+      env: environment,
       windowsHide: true,
       shell: false,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -81,4 +95,4 @@ async function openWindowsDelete(target) {
     throw failure();
   }
 }
-module.exports = { openWindowsDelete };
+module.exports = { openWindowsDelete, selectedDeleteEnvironment };
