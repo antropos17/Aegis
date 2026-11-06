@@ -24,6 +24,21 @@ tool metadata, evidence, export and snapshot operations remain available.
 Snapshot acceptance still requires acknowledgment and a fresh matching capture.
 No findings or unchanged fingerprints do not establish safety.
 
+Local security can also compare a returned result bundle, a file that holds a
+“before” snapshot, an “after” snapshot and some claims. **Compare a returned
+result** jumps to **Choose result and compare**, which opens a file dialog for
+one bundle. The **Changes** list shows which files differ, and the **Coverage**
+section shows the completeness and status of the capture. The comparison runs no
+code from the bundle and writes nothing to the project. Claims inside the
+bundle, such as an acceptance or a stopped program, are untrusted. **Refresh
+retained comparison** shows the saved comparison again without rereading the
+original files, and **Clear retained comparison** removes it without changing
+the imported file or the project. An incomplete capture leaves its changes
+unknown, and **Launch unavailable** and **Project export unavailable** stay
+disabled. The [Local security
+workspace](LOCAL-SECURITY-UI.md#compare-a-returned-result) describes each
+control.
+
 ## Check an action setup
 
 Choose a single action or catalog and an execution route. The form explains which
