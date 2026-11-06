@@ -18,9 +18,12 @@ that usable contract. A recognition signature does not add an enforced route.
 
 ## Choose a task
 
-Start with [good first issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
-for bounded newcomer tasks, or [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22)
-for larger contributions. Choose an issue with starting files, expected
+Start with [good first issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee%20label%3A%22good%20first%20issue%22)
+for bounded newcomer tasks, or [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee%20label%3A%22help%20wanted%22)
+for larger contributions. These queues show unassigned issues. Check the latest
+comments before claiming a task; if somebody has already started, coordinate
+with them and a maintainer before opening overlapping work. Choose an issue with
+starting files, expected
 behavior, acceptance checks and platform needs. Read the issue's dependencies
 and active PRs before choosing it; comment with the part you intend to take.
 Maintainers coordinate overlapping changes and security-sensitive boundaries.
@@ -29,9 +32,9 @@ Choose one useful contribution without learning every subsystem:
 
 | Contribution | Start here | A reviewable result |
 | --- | --- | --- |
-| Documentation: setup instructions and reproducible failures | [Newcomer documentation issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Adocumentation%20label%3A%22good%20first%20issue%22), this guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
-| JavaScript/Vitest: Guard regression cases | [Testing issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Atesting%20label%3A%22help%20wanted%22), `src/main/action-policy.js`, `tests/main/action-policy.test.js` and existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
-| Svelte/TypeScript: decision and failure feedback | [UI issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Aui%20label%3A%22help%20wanted%22), `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
+| Documentation: setup instructions and reproducible failures | [Newcomer documentation issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee%20label%3Adocumentation%20label%3A%22good%20first%20issue%22), this guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
+| JavaScript/Vitest: Guard regression cases | [Testing issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee%20label%3Atesting%20label%3A%22help%20wanted%22), `src/main/action-policy.js`, `tests/main/action-policy.test.js` and existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
+| Svelte/TypeScript: decision and failure feedback | [UI issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee%20label%3Aui%20label%3A%22help%20wanted%22), `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
 
 Documentation and inert regression fixtures can be useful without a Windows
 desktop or a provider account. Svelte changes need the rendered checks named

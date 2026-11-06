@@ -1,6 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import LocalSecurity from '../../../frontend/observatory/components/LocalSecurity.svelte';
+import LocalSecurityRows from '../../../frontend/observatory/components/LocalSecurityRows.svelte';
+import { language } from '../../../frontend/observatory/runtime/i18n';
 import { previewLocalSecurity } from '../../../frontend/observatory/demo/local-security';
 import { reviewRows, localReview } from '../../../frontend/observatory/runtime/local-security';
 import type { Host } from '../../../frontend/observatory/runtime/host';
@@ -376,4 +378,62 @@ it('does not move delayed evidence-section focus into a hidden workspace', async
   await fireEvent.click(button);
   expect(focus).not.toHaveBeenCalled();
   focus.mockRestore();
+});
+it('announces matching records and the current page without moving focus or dropping rows', async () => {
+  const rows = Array.from({ length: 25 }, (_, index) => ({
+    title: 'Finding ' + index,
+    subtitle: 'private/path-' + index + '.sh',
+    evidence: {},
+  }));
+  render(LocalSecurityRows, { rows, empty: 'No findings.' });
+  const status = screen.getByRole('status');
+  const titles = () => screen.queryAllByText(/^Finding \d+$/, { selector: 'strong' });
+  expect(status).toHaveTextContent('25 of 25 records, page 1 of 2');
+  expect(status).not.toHaveTextContent('private/path');
+
+  const filter = screen.getByLabelText('Filter results');
+  filter.focus();
+  await fireEvent.input(filter, { target: { value: 'no such finding' } });
+  expect(status).toHaveTextContent(/^0 of 25 records$/);
+  expect(titles()).toHaveLength(0);
+  expect(filter).toHaveFocus();
+
+  await fireEvent.input(filter, { target: { value: '' } });
+  expect(status).toHaveTextContent('25 of 25 records, page 1 of 2');
+  expect(titles()).toHaveLength(20);
+  expect(filter).toHaveFocus();
+
+  const next = screen.getByRole('button', { name: 'Next' });
+  const previous = screen.getByRole('button', { name: 'Previous' });
+  expect(previous).toHaveAttribute('aria-disabled', 'true');
+  next.focus();
+  await fireEvent.click(next);
+  expect(status).toHaveTextContent('25 of 25 records, page 2 of 2');
+  expect(titles()).toHaveLength(5);
+  expect(screen.getByText('Finding 24', { selector: 'strong' })).toBeVisible();
+  // At the last page Next stays focusable, so keyboard focus is not dropped.
+  expect(next).toHaveAttribute('aria-disabled', 'true');
+  expect(next).not.toBeDisabled();
+  expect(next).toHaveFocus();
+  await fireEvent.click(next);
+  expect(status).toHaveTextContent('25 of 25 records, page 2 of 2');
+  expect(titles()).toHaveLength(5);
+  await fireEvent.click(previous);
+  expect(status).toHaveTextContent('25 of 25 records, page 1 of 2');
+  expect(titles()).toHaveLength(20);
+  expect(previous).toHaveAttribute('aria-disabled', 'true');
+});
+it('localizes the record and page announcement', () => {
+  language.set('pt');
+  try {
+    const rows = Array.from({ length: 21 }, (_, index) => ({
+      title: 'Finding ' + index,
+      subtitle: '',
+      evidence: {},
+    }));
+    render(LocalSecurityRows, { rows, empty: 'No findings.' });
+    expect(screen.getByRole('status')).toHaveTextContent('21 de 21 registros, página 1 de 2');
+  } finally {
+    language.set('en');
+  }
 });

@@ -472,6 +472,191 @@ describe('exports', () => {
     });
   });
 
+  describe.each([
+    ['exportLog', 'json', 'Activity log export failed'],
+    ['exportCsv', 'csv', 'CSV export failed'],
+  ])('%s destination replacement', (method, ext, failure) => {
+    const previous = 'previous export bytes';
+    const realOpen = fs.promises.open;
+    let destination;
+
+    beforeEach(() => {
+      destination = path.join(tmpDir, `existing.${ext}`);
+      fs.writeFileSync(destination, previous);
+      initExporter({
+        activityLog: [
+          {
+            timestamp: Date.now(),
+            agent: 'Claude',
+            file: '/repo/first.txt',
+            sensitive: false,
+            action: 'read',
+          },
+          {
+            timestamp: Date.now(),
+            agent: 'Copilot',
+            file: '/repo/second.txt',
+            sensitive: true,
+            action: 'write',
+          },
+        ],
+      });
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath: destination });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /** Replace one method on the real temporary file handle. */
+    function injectHandle(name, implementation) {
+      vi.spyOn(fs.promises, 'open').mockImplementation(async (...args) => {
+        const handle = await realOpen(...args);
+        const original = handle[name].bind(handle);
+        handle[name] = (...callArgs) => implementation(handle, original, callArgs);
+        return handle;
+      });
+    }
+
+    const destinationBytes = () => fs.readFileSync(destination, 'utf8');
+    const directory = () => fs.readdirSync(tmpDir).sort();
+
+    it('replaces the destination with every row and leaves no temporary file', async () => {
+      const result = await exporter[method]();
+      expect(result).toEqual({ success: true, path: destination, eventCount: 2 });
+      expect(destinationBytes()).toContain('/repo/first.txt');
+      expect(destinationBytes()).toContain('/repo/second.txt');
+      expect(destinationBytes()).not.toContain(previous);
+      expect(directory()).toEqual([path.basename(destination)]);
+    });
+
+    it('reports the exported rows even when the log grows while writing', async () => {
+      const state = initExporter({ activityLog: [{ timestamp: Date.now(), file: '/repo/a' }] });
+      injectHandle('sync', async (_handle, original) => {
+        state.activityLog.push({ timestamp: Date.now(), file: '/repo/late' });
+        return original();
+      });
+      expect(await exporter[method]()).toMatchObject({ success: true, eventCount: 1 });
+      expect(destinationBytes()).not.toContain('/repo/late');
+    });
+
+    it.each([
+      [
+        'a partial write',
+        () =>
+          injectHandle('writeFile', async (handle) => {
+            await handle.write('partial');
+            throw new Error(`ENOSPC ${tmpDir}`);
+          }),
+      ],
+      [
+        'a failed flush',
+        () =>
+          injectHandle('sync', async () => {
+            throw new Error(`EIO ${tmpDir}`);
+          }),
+      ],
+      [
+        'a failed close',
+        () =>
+          injectHandle('close', async (_handle, original) => {
+            await original();
+            throw new Error(`EIO ${tmpDir}`);
+          }),
+      ],
+      [
+        'a refused replacement',
+        () => vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error(`EPERM ${tmpDir}`)),
+      ],
+    ])('preserves the destination after %s', async (_label, inject) => {
+      inject();
+      const result = await exporter[method]();
+      expect(result).toEqual({ success: false, error: failure });
+      expect(destinationBytes()).toBe(previous);
+      expect(directory()).toEqual([path.basename(destination)]);
+    });
+
+    it('never removes a temporary path it did not create', async () => {
+      const taken = Object.assign(new Error('EEXIST'), { code: 'EEXIST' });
+      vi.spyOn(fs.promises, 'open').mockRejectedValueOnce(taken);
+      const unlink = vi.spyOn(fs.promises, 'unlink');
+      expect(await exporter[method]()).toEqual({ success: false, error: failure });
+      expect(unlink).not.toHaveBeenCalled();
+      expect(destinationBytes()).toBe(previous);
+    });
+
+    it('removes only the temporary file of the failed attempt', async () => {
+      const neighbor = path.join(tmpDir, '.aegis-export-neighbor.tmp');
+      fs.writeFileSync(neighbor, 'another attempt');
+      vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('EPERM'));
+      const unlink = vi.spyOn(fs.promises, 'unlink');
+      await exporter[method]();
+      expect(unlink).toHaveBeenCalledOnce();
+      expect(unlink.mock.calls[0][0]).not.toBe(neighbor);
+      expect(path.dirname(unlink.mock.calls[0][0])).toBe(tmpDir);
+      expect(directory()).toEqual([path.basename(neighbor), path.basename(destination)].sort());
+    });
+
+    it('reports a refused cleanup explicitly without forcing removal', async () => {
+      vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('EPERM'));
+      const unlink = vi
+        .spyOn(fs.promises, 'unlink')
+        .mockRejectedValueOnce(Object.assign(new Error(`EPERM ${tmpDir}`), { code: 'EPERM' }));
+      const chmod = vi.spyOn(fs.promises, 'chmod');
+      const rm = vi.spyOn(fs.promises, 'rm');
+      const result = await exporter[method]();
+      expect(result).toEqual({
+        success: false,
+        error: failure + '; temporary file cleanup unconfirmed',
+        cleanupIncomplete: true,
+      });
+      expect(JSON.stringify(result)).not.toContain(tmpDir);
+      expect(unlink).toHaveBeenCalledOnce();
+      expect(chmod).not.toHaveBeenCalled();
+      expect(rm).not.toHaveBeenCalled();
+      expect(destinationBytes()).toBe(previous);
+    });
+
+    it('keeps a refused cleanup explicit when ownership is lost', async () => {
+      vi.spyOn(fs.promises, 'unlink').mockRejectedValueOnce(
+        Object.assign(new Error('EPERM'), { code: 'EPERM' }),
+      );
+      let checks = 0;
+      expect(await exporter[method](() => ++checks < 2)).toEqual({
+        success: false,
+        cleanupIncomplete: true,
+      });
+      expect(destinationBytes()).toBe(previous);
+    });
+
+    // Check 1 follows the save dialog; the remaining checks follow the temporary
+    // file's creation, write, flush and close, the last just before the replacement.
+    it.each([2, 3, 4, 5])(
+      'stops without replacing when ownership is lost at check %i',
+      async (lostAt) => {
+        const rename = vi.spyOn(fs.promises, 'rename');
+        let checks = 0;
+        const result = await exporter[method](() => ++checks < lostAt);
+        expect(result).toEqual({ success: false });
+        expect(checks).toBe(lostAt);
+        expect(rename).not.toHaveBeenCalled();
+        expect(destinationBytes()).toBe(previous);
+        expect(directory()).toEqual([path.basename(destination)]);
+      },
+    );
+
+    it('keeps the replacement when the owner is lost after it was dispatched', async () => {
+      let owned = true;
+      const realRename = fs.promises.rename;
+      vi.spyOn(fs.promises, 'rename').mockImplementationOnce(async (...args) => {
+        owned = false;
+        return realRename(...args);
+      });
+      expect(await exporter[method](() => owned)).toMatchObject({ success: true });
+      expect(destinationBytes()).toContain('/repo/first.txt');
+    });
+  });
+
   describe('generateReport', () => {
     it('groups repeated skills and endpoints, preserves counts and excludes content fields', async () => {
       const event = {

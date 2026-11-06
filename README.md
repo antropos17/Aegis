@@ -1,30 +1,63 @@
 <p align="center">
-  <img src="docs/images/github-header.svg" width="720" alt="AEGIS — local AI agent monitoring">
+  <img src="docs/images/github-header.svg" width="960" alt="AEGIS. Your agents have access. You deserve visibility. A local security dashboard for AI coding agents.">
 </p>
 
-# AEGIS — AI agent monitoring for Windows
+<a id="aegis--ai-agent-monitoring-for-windows"></a>
 
-AEGIS is an open-source Electron desktop app for reviewing local AI coding-agent
-activity. It brings process, file and network observations, Claude Code usage and
-project security reviews into one interface. Windows is the primary platform;
-macOS and Linux support remain experimental.
+# AEGIS — See what your AI agents are doing
 
-Monitoring observes and records activity; it does not automatically block
-commands. Current [Claude Guard development](docs/CLAUDE-HOOK-APP.md) adds a
-separate Claude Code hook profile for selected Bash actions. That route requires
-explicit setup; its complete allow/deny behavior is still being qualified, and a
-configured profile does not establish `Blocking verified`. Each published
-installer contains the features at its release tag.
+**Your agents have access. You deserve visibility.**
 
-[Install](#install) · [Use AEGIS](#use-aegis) · [FAQ](docs/FAQ.md) · [Current development](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute) · [Help](#community-and-license)
+AEGIS puts local AI-agent activity in one desktop dashboard. Follow detected
+Claude Code, Codex, Cursor and other agent processes, investigate sensitive-file
+observations and network connections, and review a project or skill before you
+run it. Open source. Windows first. No subscription for monitoring.
 
-> **Windows beta:** see [published releases and installers](https://github.com/antropos17/Aegis/releases).
-> [Verify the installer](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
->
-> **Current source version**: 0.21.0-beta <!-- x-release-please-version -->
-> Later source work is described below. Installed builds contain the features at their release tag.
+<p align="center">
+  <a href="https://github.com/antropos17/Aegis/releases"><strong>Download the Windows beta →</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://antropos17.github.io/aegis-media/">Explore AEGIS</a>
+  &nbsp; · &nbsp;
+  <a href="docs/screenshots/README.md">See the interface</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/antropos17/Aegis/actions/workflows/ci.yml"><img src="https://github.com/antropos17/Aegis/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22d3ee" alt="MIT license"></a>
+  <a href="#install"><img src="https://img.shields.io/badge/Windows-beta-f59e0b" alt="Windows beta"></a>
+  <a href="SECURITY.md#privacy-architecture"><img src="https://img.shields.io/badge/monitoring-local-22d3ee" alt="Monitoring data stays local"></a>
+</p>
+
+[![AEGIS Monitoring workspace: agent activity, resource charts and investigation tools](docs/screenshots/01-monitoring.png)](docs/screenshots/README.md)
+
+*Interface preview with simulated data, captured 11 October 2026.
+[Screenshots and provenance](docs/screenshots/README.md).*
+
+## From “what just happened?” to something you can inspect
+
+- **Follow the agent behind the activity.** Explore detected processes, parent/child trees, file observations and TCP endpoints in one place.
+- **Investigate sensitive activity.** Open an alert, examine its evidence and attribution, then keep a report for later review.
+- **Check a project before the next run.** Review a selected project, skill or agent profile for static findings, configuration evidence and changes since a saved snapshot.
+- **Understand Claude Code usage.** Inspect measured token subtotals from matching local sessions and estimated costs alongside resource charts.
+- **Add controls where you choose.** Configure explicit action policies and validating MCP gateways for selected routes. [Scope and setup](#selected-action-controls).
+
+Monitoring runs without an agent plugin. It observes and records; automatic
+blocking requires a separately configured supported route. Recognition and
+attribution can be incomplete. Windows is the primary platform; macOS and Linux
+remain experimental. [Capabilities and limits](docs/CAPABILITIES.md).
+
+[Install](#install) · [Use AEGIS](#use-aegis) · [FAQ](docs/FAQ.md) · [Roadmap](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute)
+
+> **Current source version**: 0.23.0-beta <!-- x-release-please-version -->
+> Each installer contains the features at its release tag.
+> [Verify your download](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
 
 ## Start here
+
+For a first desktop session: install a verified beta, open **Monitoring** while
+your coding agent runs, then select an agent to inspect its observed activity.
+For a review before running unfamiliar code, open **Local security** and select
+the project folder. No provider API key is needed for these workflows.
 
 | Your next step | Where to go |
 | --- | --- |
@@ -145,6 +178,8 @@ charges. See [privacy and key handling](SECURITY.md#privacy-architecture).
 
 <a id="opt-in-action-control"></a>
 
+<a id="selected-action-controls"></a>
+
 ## Selected action controls
 
 These routes require explicit setup and cover selected actions only. They do not
@@ -206,6 +241,9 @@ The following is a historical snapshot from 18 October 2026, through
 [#975](https://github.com/antropos17/Aegis/pull/975) at
 [`96b63b16`](https://github.com/antropos17/Aegis/tree/96b63b165ac932e9615815f93c587765e6bde1b8).
 
+<details>
+<summary>Read the engineering milestones and dated native qualification evidence</summary>
+
 | Area | Merged work |
 | --- | --- |
 | Development context | [#960](https://github.com/antropos17/Aegis/pull/960) aligns context and skills; [#962](https://github.com/antropos17/Aegis/pull/962) adds Windows fixture CI. [Contributor workflow](docs/development/workflow.md) |
@@ -233,6 +271,8 @@ original handles; the [earlier attribution failure](docs/recon/evidence/ordinary
 is retained. Collector drops remain separate from kernel loss; these passes do
 not establish complete capture or attribution of every worker.
 
+</details>
+
 <a id="the-evidence-graph"></a>
 
 ## Known limits
@@ -254,8 +294,8 @@ failures, meaningful regression cases and decision feedback. The
 [contribution guide](CONTRIBUTING.md#current-product-priority) gives bounded
 starting points and their acceptance conditions.
 
-Choose an [open good first issue](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
-for a small, scoped change, or browse [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22)
+Choose an [open good first issue](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee%20label%3A%22good%20first%20issue%22)
+for a small, scoped change, or browse [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee%20label%3A%22help%20wanted%22)
 for work that needs more context. The [task picker](CONTRIBUTING.md#choose-a-task)
 connects documentation, Svelte/TypeScript UI and JavaScript/Vitest regression work
 to starting files and focused issue queues. Read the issue's expected result and
@@ -279,6 +319,11 @@ provider scenarios need their own matching evidence. [Architecture](ARCHITECTURE
 <a id="support-and-license"></a>
 
 ## Community and license
+
+**Help more developers see what their agents are doing.** If AEGIS is useful to
+you, star the repository, share a workflow that helped, or tell us what made
+setup difficult in [Discussions](https://github.com/antropos17/Aegis/discussions).
+Reproducible feedback helps shape the next beta.
 
 For setup questions, start with the [FAQ](docs/FAQ.md) and
 [user guides](docs/README.md), then ask in Discussions. For a reproducible bug,

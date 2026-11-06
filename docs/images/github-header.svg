@@ -1,24 +1,40 @@
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  width="720"
-  height="164"
-  viewBox="0 0 720 164"
-  role="img"
-  aria-labelledby="title description"
->
-  <title id="title">AEGIS — local AI agent monitoring</title>
-  <desc id="description">The AEGIS shield mark and name on the charcoal Observatory surface.</desc>
-  <rect x="0.5" y="0.5" width="719" height="163" rx="10" fill="#171819" stroke="#36393c" />
-  <path
-    transform="translate(30 38) scale(3.6)"
-    fill="#ececea"
-    fill-rule="evenodd"
-    d="M12 2 21 5.5v7.1l-2.3 4.6L12 22l-6.7-4.8L3 12.6V5.5ZM10.7 6.5 6 16h2.8l.8-1.7h4.8l.8 1.7H18l-4.7-9.5ZM12 9.3l1.5 2.8h-3Z"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="title description">
+  <title id="title">AEGIS — See what your AI agents are doing</title>
+  <desc id="description">Your agents have access. You deserve visibility. A local security dashboard for AI coding agents. Observe activity, review projects and investigate evidence.</desc>
+  <defs>
+    <linearGradient id="surface" x2="1" y2="1"><stop stop-color="#101b24"/><stop offset="1" stop-color="#101113"/></linearGradient>
+    <linearGradient id="line"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#b6d9e7" stroke-opacity=".035"/></pattern>
+  </defs>
+  <rect width="1280" height="400" rx="18" fill="url(#surface)"/>
+  <rect width="1280" height="400" rx="18" fill="url(#grid)"/>
+  <rect x=".5" y=".5" width="1279" height="399" rx="18" fill="none" stroke="#293841"/>
   <g font-family="Segoe UI, Arial, sans-serif">
-    <text x="142" y="82" font-size="50" font-weight="600" letter-spacing="2" fill="#ececea">
-      AEGIS
-    </text>
-    <text x="144" y="121" font-size="26" fill="#bcbdbb">Local AI agent monitoring</text>
+    <g transform="translate(52 40)">
+      <path transform="scale(1.9)" fill="#22d3ee" fill-rule="evenodd" d="M12 2 21 5.5v7.1l-2.3 4.6L12 22l-6.7-4.8L3 12.6V5.5ZM10.7 6.5 6 16h2.8l.8-1.7h4.8l.8 1.7H18l-4.7-9.5ZM12 9.3l1.5 2.8h-3Z"/>
+      <text x="60" y="35" font-size="34" font-weight="700" letter-spacing="3" fill="#f3f6f7">AEGIS</text>
+    </g>
+    <rect x="1034" y="45" width="192" height="32" rx="16" fill="#22d3ee" fill-opacity=".09" stroke="#31505c"/>
+    <circle cx="1055" cy="61" r="4" fill="#22d3ee"/>
+    <text x="1070" y="67" font-size="15" fill="#c1e7ec">WINDOWS BETA</text>
+    <text x="56" y="157" font-size="49" font-weight="650" letter-spacing="-1" fill="#f3f6f7">Your agents have access.</text>
+    <text x="56" y="219" font-size="49" font-weight="650" letter-spacing="-1" fill="#22d3ee">You deserve visibility.</text>
+    <text x="59" y="265" font-size="23" fill="#b5c3cc">A local security dashboard for AI coding agents.</text>
+    <path d="M59 302H1218" stroke="url(#line)"/>
+    <g font-size="17" fill="#c9d4db">
+      <text x="59" y="345">01</text><text x="93" y="345" fill="#f3f6f7">Observe activity</text>
+      <text x="369" y="345">02</text><text x="403" y="345" fill="#f3f6f7">Review projects</text>
+      <text x="669" y="345">03</text><text x="703" y="345" fill="#f3f6f7">Investigate evidence</text>
+      <text x="1132" y="345" font-size="15" fill="#8296a2">MIT / LOCAL</text>
+    </g>
+    <g transform="translate(958 126)" fill="none" stroke="#22d3ee">
+      <circle cx="112" cy="69" r="87" stroke-opacity=".12"/>
+      <circle cx="112" cy="69" r="62" stroke-opacity=".19"/>
+      <path d="M0 69H224M112 -32V170" stroke-opacity=".12"/>
+      <path d="m70 44 42-22 42 22v38l-14 26-28 18-28-18-14-26Z" fill="#22d3ee" fill-opacity=".035" stroke-opacity=".7" stroke-width="2"/>
+      <path d="M89 72h13l8-17 12 33 8-16h11" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="194" cy="39" r="5" fill="#f59e0b" stroke="#f59e0b"/>
+      <circle cx="60" cy="140" r="4" fill="#22d3ee"/>
+    </g>
   </g>
 </svg>
