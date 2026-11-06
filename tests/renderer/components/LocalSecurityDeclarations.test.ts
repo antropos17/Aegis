@@ -1,6 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import LocalSecurityResults from '../../../frontend/observatory/components/LocalSecurityResults.svelte';
+import { language } from '../../../frontend/observatory/runtime/i18n';
 import {
   mcpDeclarations,
   type LocalReview,
@@ -174,4 +176,30 @@ it('omits the declaration panel when the selected report has no config inventory
   });
   expect(screen.queryByRole('region', { name: 'MCP configuration declarations' })).toBeNull();
   expect(screen.queryByRole('button', { name: /MCP declarations/ })).toBeNull();
+});
+
+it('formats the capture time in the selected language and keeps an invalid one unavailable', async () => {
+  // Noon UTC keeps a two-digit local day in every timezone.
+  const createdAt = '2026-10-19T12:00:00.000Z';
+  const day = new Date(createdAt).getDate();
+  const props = { pending: false, preview: false, savedAcceptance: false, action: vi.fn() };
+  const captured = render(LocalSecurityResults, {
+    ...props,
+    review: { ...review([]), createdAt },
+  });
+  try {
+    expect(captured.container).toHaveTextContent(`10/${day}/2026`);
+    language.set('pt');
+    await tick();
+    expect(captured.container).toHaveTextContent(`${day}/10/2026`);
+    captured.unmount();
+    render(LocalSecurityResults, {
+      ...props,
+      review: { ...review([]), createdAt: 'not-a-date' },
+    });
+    expect(screen.getByText(/^Não informado ·/)).toBeVisible();
+    expect(screen.queryByText(/Invalid Date/)).toBeNull();
+  } finally {
+    language.set('en');
+  }
 });
