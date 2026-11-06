@@ -25,15 +25,23 @@ with a count, without a private path or content excerpt. Its usage is absent fro
 measured subtotal. Unreadable or malformed sources also limit coverage. These figures
 are observed usage, rather than a complete provider bill.
 
-Dollar amounts remain estimates from a local rate table. For the existing known
+Dollar amounts remain estimates from a local rate table. A model being present in
+the table does not mean its rate was verified: entries carry a `verifiedAt` date
+only when checked against a provider price sheet. Current Claude 4.x/Haiku entries
+were checked on 2026-10-01; the GPT and Gemini entries remain unverified local
+assumptions. Unverified rates set sticky `pricingEstimated` while preserving
+measured token counts (`estimated` remains false). Unknown model IDs use the default
+fallback and mark both the pricing and count estimate flags. For the existing known
 Claude 4.x/Haiku model entries, cache reads cost 0.1 times ordinary input; cache
 writes cost 1.25 times for five minutes and 2 times for one hour. The adapter keeps
 the measured aggregate input count while passing these numeric categories through
 both main and subagent transcripts. Duration fields must sum to the reported cache
 write total. Missing or inconsistent durations use the five-minute rate and set a
-sticky `pricingEstimated` flag; token counts remain measured. Unknown model IDs or
-invalid categories use the existing estimated fallback, rather than applying these
-multipliers to newer models with different rates.
+sticky `pricingEstimated` flag; token counts remain measured. If cache categories
+are invalid, AEGIS uses the model's ordinary input rate and marks the price
+uncertain. Unknown model IDs use `DEFAULT_PRICING` and mark both pricing and count
+estimates. Cache multipliers apply only to the listed Claude models; they are not
+assumed for newer models with different cache pricing.
 
 Rates were checked on 2026-10-01 against [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing)
 and [prompt caching usage fields](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).

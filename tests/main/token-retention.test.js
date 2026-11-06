@@ -41,6 +41,15 @@ describe('token history retention', () => {
     expect(total('totalTokens')).toBe(19_200);
   });
 
+  it('archives unverified pricing without marking measured token counts estimated', () => {
+    for (let birth = 1; birth <= 300; birth++) {
+      tracker.trackTokens(proc(birth), { model: 'gpt-4o', inputTokens: 10, outputTokens: 2 });
+    }
+    tracker.compactCosts(() => false, true);
+    const archive = tracker.getAllCosts().find((row) => row.archived);
+    expect(archive).toMatchObject({ inputTokens: 440, outputTokens: 88, totalTokens: 528, estimated: false, pricingEstimated: true });
+  });
+
   it('freezes retention without a confirmed observation, including an empty outage population', () => {
     for (let birth = 1; birth <= 1000; birth++) tracker.trackTokens(proc(birth), event);
     tracker.compactCosts(() => false, false);

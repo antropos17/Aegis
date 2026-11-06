@@ -67,8 +67,8 @@ const { MODEL_PRICING, DEFAULT_PRICING, computeCost } = require('./token-pricing
  *   out of date and are not a provider billing statement.
  * @property {boolean} estimated - true once ANY contributing event had estimated
  *   counts or used an unknown-model fallback price (sticky — never flips back).
- * @property {boolean} [pricingEstimated] - sticky cache-pricing assumption flag;
- *   an unknown write duration does not change measured token counts.
+ * @property {boolean} [pricingEstimated] - sticky local-rate or cache-pricing uncertainty;
+ *   pricing uncertainty does not change measured token counts.
  * @property {string[]} models - distinct model ids that contributed, in first-seen order.
  * @property {boolean} [modelsTruncated] - additional/oversized labels were omitted.
  * @property {boolean} [archived] - aggregate of exited history, never a process.
@@ -207,7 +207,7 @@ function trackTokens(proc, event) {
   const inTok = hasInput ? event.inputTokens : 0;
   const outTok = hasOutput ? event.outputTokens : 0;
   const model = typeof event.model === 'string' ? event.model : '';
-  const { costUsd, knownModel, cachePricingEstimated } = computeCost(
+  const { costUsd, knownModel, pricingEstimated } = computeCost(
     model,
     inTok,
     outTok,
@@ -222,8 +222,7 @@ function trackTokens(proc, event) {
   record.outputTokens += outTok;
   record.totalTokens = record.inputTokens + record.outputTokens;
   record.costUsd += isNonNegativeNumber(event.acceptedCostUsd) ? event.acceptedCostUsd : costUsd;
-  if (event.acceptedPricingEstimated === true || cachePricingEstimated)
-    record.pricingEstimated = true;
+  if (event.acceptedPricingEstimated === true || pricingEstimated) record.pricingEstimated = true;
   record.estimated = record.estimated || eventEstimated || event.acceptedEstimated === true;
   rememberModel(record, model);
 

@@ -145,11 +145,13 @@ it('rejects malformed cache categories and uses an explicitly estimated fallback
   expect(tracker.computeCost('future-model', 1000000, 0, breakdown)).toEqual({
     costUsd: 3,
     knownModel: false,
+    pricingEstimated: true,
     cachePricingEstimated: true,
   });
   expect(tracker.computeCost('claude-sonnet-4-6', 1000000, 0, { ...breakdown, read: -1 })).toEqual({
     costUsd: 3,
     knownModel: true,
+    pricingEstimated: true,
     cachePricingEstimated: true,
   });
 });
