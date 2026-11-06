@@ -20,6 +20,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.24.0-beta (2026-11-06)
+
+## What's Changed
+* ci: register manual installed owner qualification by @antropos17 in https://github.com/antropos17/Aegis/pull/1229
+* feat(a11y): announce filtered Local security results and page changes by @costajohnt in https://github.com/antropos17/Aegis/pull/1231
+* docs: make AEGIS GitHub page clearer and more compelling by @antropos17 in https://github.com/antropos17/Aegis/pull/1232
+* docs(local-security): explain the returned-result comparison workflow by @caseylee-TC in https://github.com/antropos17/Aegis/pull/1235
+* fix(exports): preserve the previous activity export when writing fails by @NopeCharon in https://github.com/antropos17/Aegis/pull/1237
+* fix(ipc): recheck the requesting renderer when a session report finishes by @NopeCharon in https://github.com/antropos17/Aegis/pull/1236
+* fix(i18n): format captured-result timestamps with the selected app language by @NopeCharon in https://github.com/antropos17/Aegis/pull/1238
+* fix(tokens): keep unverified pricing explicit by @Vamsi-2581 in https://github.com/antropos17/Aegis/pull/1234
+* Add supervised Windows owner console for selected deletion by @antropos17 in https://github.com/antropos17/Aegis/pull/1167
+
+## New Contributors
+* @caseylee-TC made their first contribution in https://github.com/antropos17/Aegis/pull/1235
+* @NopeCharon made their first contribution in https://github.com/antropos17/Aegis/pull/1237
+* @Vamsi-2581 made their first contribution in https://github.com/antropos17/Aegis/pull/1234
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.23.0-beta...aegis-v0.24.0-beta
+
 ## 0.23.0-beta (2026-11-02)
 
 ## What's Changed
