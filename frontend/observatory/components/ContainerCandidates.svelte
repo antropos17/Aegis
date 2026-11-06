@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from '../runtime/i18n';
+  import { t, language } from '../runtime/i18n';
+  import { capturedTime } from '../runtime/captured-time';
   import {
     containerDiscovery,
     configurationStale,
@@ -55,7 +56,7 @@
           <p class="muted">
             {$t('Last observed:')}
             <time datetime={new Date(discovery.observedAt).toISOString()}
-              >{new Date(discovery.observedAt).toLocaleString()}</time
+              >{$t(capturedTime(discovery.observedAt, $language))}</time
             >
           </p>
         {/if}
@@ -108,7 +109,7 @@
                       {$t('Last observed:')}
                       {#if configuration.observedAt !== null}<time
                           datetime={new Date(configuration.observedAt).toISOString()}
-                          >{new Date(configuration.observedAt).toLocaleString()}</time
+                          >{$t(capturedTime(configuration.observedAt, $language))}</time
                         >{/if}
                     </p>
                     {#if stale}
