@@ -47,6 +47,17 @@ describe('packaging production preflight', () => {
     ]);
   });
 
+  it('stages the owner console through the ordinary Windows sidecar build', () => {
+    const manifest = require('../../package.json');
+    const sidecar = manifest.build.win.extraResources.find(
+      (entry) => entry.from === 'build/sidecar',
+    );
+    expect(sidecar).toEqual({ from: 'build/sidecar', to: 'sidecar', filter: ['**/*'] });
+    const buildSource = fs.readFileSync(path.join(projectRoot, 'scripts/build-sidecar.js'), 'utf8');
+    expect(buildSource).toContain("'aegis-owner-console.exe'");
+    expect(buildSource).toContain("'sidecar', 'owner-console', name");
+  });
+
   it('refuses Windows packaging when the self-contained read helper cannot publish', () => {
     const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
     build
