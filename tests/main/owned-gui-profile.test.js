@@ -63,7 +63,7 @@ function loadMain(argv, app, onCli = () => {}) {
   Module._load = function (request, parent) {
     if (request === 'electron') { electronLoads++; return electron; }
     if (request === './cli' && parent?.filename === mainPath) {
-      return { handleCLI: () => { onCli(); return new Promise(() => {}); } };
+      return { handleCLI: (...args) => { onCli(...args); return new Promise(() => {}); } };
     }
     return originalLoad.apply(this, arguments);
   };
@@ -77,6 +77,29 @@ function loadMain(argv, app, onCli = () => {}) {
 }
 
 describe('owned GUI profile storage selector (no enrollment authority)', () => {
+  it.each(['--codex-pretool-hook', '--codex-launch-override'])(
+    'dispatches packaged %s before any Electron storage or GUI access',
+    (mode) => {
+      const app = appProbe(), cli = vi.fn();
+      const args = [mode, 'PRIVATE_POLICY', '0'.repeat(64)];
+      expect(loadMain(['owned.exe', ...args], app, cli)).toBe(0);
+      expect(cli).toHaveBeenCalledExactlyOnceWith(args);
+      expect(app.setPath).not.toHaveBeenCalled();
+      expect(app.getPath).not.toHaveBeenCalled();
+      expect(app.requestSingleInstanceLock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['--codex-pretool-hook', '--codex-launch-override'])(
+    'routes ambiguous %s to its fixed CLI refusal before touching a GUI profile',
+    (mode) => {
+      const app = appProbe(), cli = vi.fn();
+      expect(loadMain(['owned.exe', mode, 'PRIVATE_POLICY', flag, profile], app, cli)).toBe(0);
+      expect(cli).toHaveBeenCalledExactlyOnceWith([mode]);
+      expect(app.setPath).not.toHaveBeenCalled();
+      expect(app.getPath).not.toHaveBeenCalled();
+    },
+  );
   it('leaves ordinary startup arguments and application paths untouched when absent', () => {
     const app = appProbe();
     expect(api.configureOwnedGuiProfile(['main.js', '--help'], app)).toBe(false);

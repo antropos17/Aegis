@@ -45,6 +45,7 @@ Options:
   --action-policy-after-hook <policy.json>  Observe a reported Claude Bash result without changing it
   --claude-guard-session <port> <session-id>  Start one explicitly reviewed Claude session
   --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
+  --codex-pretool-hook <policy.json> <sha256>  Experimental Codex PreToolUse Bash decision hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
   --handoff-send  Forward one hook from stdin using AEGIS_HANDOFF_PORT/TOKEN
   --handoff-import-json claude-code <events.jsonl>  Import unverified subagent lifecycle metadata
@@ -117,6 +118,10 @@ async function handleCLI(argv) {
   // This mode never emits child output; invalid or mixed argv must stay nonzero.
   if (args.includes('--gemini-beforetool-exit-code'))
     return require('./gemini-beforetool-hook').handleGeminiBeforeToolExitCode(args);
+  if (args.includes('--codex-pretool-hook'))
+    return require('./codex-pretool-hook').handleCodexPreToolHook(args, write);
+  if (args.includes('--codex-launch-override'))
+    return require('./codex-profile-launch').handleLaunchOverride(args, write);
   // A misplaced hook flag is still a hook invocation: emit only its fixed JSON deny.
   if (args.includes('--action-policy-hook'))
     return require('./action-policy-hook').handleActionPolicyHook(args, write);

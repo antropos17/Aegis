@@ -4,6 +4,7 @@
   import ActionSetupGuides from './ActionSetupGuides.svelte';
   import ClaudeHookProfile from './ClaudeHookProfile.svelte';
   import GeminiHookProfile from './GeminiHookProfile.svelte';
+  import CodexHookProfile from './CodexHookProfile.svelte';
   import Icon from './Icon.svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../runtime/i18n';
@@ -386,6 +387,7 @@
   <ActionSetupGuides {host} {preview} />
   <ClaudeHookProfile {host} {preview} />
   <GeminiHookProfile {host} {preview} />
+  <CodexHookProfile {host} {preview} />
 </div>
 
 <style>

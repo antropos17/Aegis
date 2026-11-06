@@ -220,6 +220,19 @@ function register() {
       return { success: false, error: 'Gemini profile review could not complete' };
     }
   });
+  ipcMain.handle('codex-hook:review', async (event, action) => {
+    const window = deps.getWindow?.();
+    if (!isOwned(event, window)) return denied();
+    if (!['status', 'install', 'remove', 'open-profile', 'prepare-launch'].includes(action))
+      return { success: false, error: 'Invalid profile operation' };
+    try {
+      const result = await deps.codexHookProfile?.handle(action, () => stillOwned(event, window));
+      if (!stillOwned(event, window)) return denied();
+      return result ?? { success: false, error: 'Codex profile review is unavailable' };
+    } catch {
+      return { success: false, error: 'Codex profile review could not complete' };
+    }
+  });
   ipcMain.handle('tool-context:explain', async (event, eventId) => {
     const window = deps.getWindow?.();
     if (!isOwned(event, window)) return denied();
