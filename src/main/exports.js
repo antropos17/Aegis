@@ -3,7 +3,6 @@
  * @module main/exports
  * @description Log export (JSON), CSV export, and HTML report generation
  *   with save-dialog integration.
- * @requires fs
  * @requires path
  * @requires electron
  * @author AEGIS Contributors
@@ -13,10 +12,10 @@
 
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
 const { dialog, shell, app } = require('electron');
 const { UNKNOWN_SOURCE_LABEL, EVIDENCE_CODES } = require('./attribution');
+const { replaceFileContents } = require('./export-file-replace');
 const { writePrivateReport, startPrivateReportRetention } = require('./private-report-temp');
 const {
   describeObservation,
@@ -33,6 +32,8 @@ let _state = null;
 // Recorded file-observation source labels only; never derive one from an action
 // or accept arbitrary text (which could carry contents or credentials).
 const FILE_OBSERVATION_SOURCES = new Set(['chokidar-write', 'rm-hold', 'handle-scan', 'watcher']);
+
+const CLEANUP_UNCONFIRMED = '; temporary file cleanup unconfirmed';
 
 /**
  * Agent name for a HUMAN-facing export cell (CSV, HTML report). An unattributed
@@ -121,6 +122,32 @@ function formatUptimeReport(ms) {
 }
 
 /**
+ * Replace an activity export's destination and report any failure with fixed text.
+ * @param {string} filePath - Destination chosen in the save dialog.
+ * @param {string} contents - Complete export.
+ * @param {() => boolean} canComplete - Rechecks the requesting renderer.
+ * @param {string} label - Fixed export name for the failure result.
+ * @returns {Promise<{success:false, error?:string, cleanupIncomplete?:true}|null>}
+ *   Null once the destination has been replaced.
+ * @since v0.24.0
+ */
+async function writeActivityExport(filePath, contents, canComplete, label) {
+  const { status, cleanupIncomplete } = await replaceFileContents(filePath, contents, canComplete);
+  if (status === 'replaced') return null;
+  const logger = require('./logger');
+  const failure = { success: false };
+  if (status === 'failed') {
+    logger.error('exports', label + ' failed');
+    failure.error = label + ' failed' + (cleanupIncomplete ? CLEANUP_UNCONFIRMED : '');
+  }
+  if (cleanupIncomplete) {
+    logger.warn('exports', 'Temporary export file cleanup unconfirmed');
+    failure.cleanupIncomplete = true;
+  }
+  return failure;
+}
+
+/**
  * Export the activity log as a JSON file via save dialog.
  * @param {() => boolean} [canComplete] - recheck the requesting renderer after the dialog
  * @returns {Promise<{success:boolean, path?:string, eventCount?:number}>}
@@ -173,8 +200,13 @@ async function exportLog(canComplete = () => true) {
         : [],
     })),
   };
-  fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
-  return { success: true, path: result.filePath, eventCount: _state.activityLog.length };
+  const failure = await writeActivityExport(
+    result.filePath,
+    JSON.stringify(payload, null, 2),
+    canComplete,
+    'Activity log export',
+  );
+  return failure || { success: true, path: result.filePath, eventCount: payload.events.length };
 }
 
 /**
@@ -227,12 +259,9 @@ async function exportCsv(canComplete = () => true) {
     })
     .join('\n');
   const csv = header + rows + (netRows ? '\n' + netRows : '');
-  fs.writeFileSync(result.filePath, csv);
-  return {
-    success: true,
-    path: result.filePath,
-    eventCount: _state.activityLog.length + netConns.length,
-  };
+  const eventCount = _state.activityLog.length + netConns.length;
+  const failure = await writeActivityExport(result.filePath, csv, canComplete, 'CSV export');
+  return failure || { success: true, path: result.filePath, eventCount };
 }
 
 /**
