@@ -222,8 +222,7 @@ function trackTokens(proc, event) {
   record.outputTokens += outTok;
   record.totalTokens = record.inputTokens + record.outputTokens;
   record.costUsd += isNonNegativeNumber(event.acceptedCostUsd) ? event.acceptedCostUsd : costUsd;
-  if (event.acceptedPricingEstimated === true || pricingEstimated)
-    record.pricingEstimated = true;
+  if (event.acceptedPricingEstimated === true || pricingEstimated) record.pricingEstimated = true;
   record.estimated = record.estimated || eventEstimated || event.acceptedEstimated === true;
   rememberModel(record, model);
 
