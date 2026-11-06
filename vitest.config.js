@@ -223,6 +223,7 @@ export default defineConfig({
         'src/main/anomaly-detector.js',
         'src/main/ai-analysis.js',
         'src/main/exports.js',
+        'src/main/export-file-replace.js',
         'src/main/tray-icon.js',
         'src/main/ipc-handlers.js',
         'src/main/app-quit.js',
