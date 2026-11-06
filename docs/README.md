@@ -23,6 +23,7 @@ qualification evidence and limits; those records do not qualify later installers
 | Understand alerts and saved permissions | [Alerts, review and permissions](ALERTS-AND-PERMISSIONS.md) |
 | See the simulated preview from 11 October 2026 | [Observatory screenshots](screenshots/README.md) |
 | Review local files and saved snapshots | [Local security workspace](LOCAL-SECURITY-UI.md) |
+| Compare a returned result without changing the project | [Compare a returned result](LOCAL-SECURITY-UI.md#compare-a-returned-result) |
 | Check a selected action or action catalog | [Action control workspace](ACTION-COVERAGE-UI.md) |
 | Understand measured token subtotals and estimated costs | [Token accounting](TOKEN-ACCOUNTING.md) |
 | Interpret saved audit counts and coverage loss | [Audit counters](AUDIT-COUNTERS.md) |
