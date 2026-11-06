@@ -1,9 +1,11 @@
 import { expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import ResultReview from '../../../frontend/observatory/components/ResultReview.svelte';
 import { previewResultReview } from '../../../frontend/observatory/demo/result-review';
 import { importedResultReview } from '../../../frontend/observatory/runtime/result-review';
 import type { Host } from '../../../frontend/observatory/runtime/host';
+import { language } from '../../../frontend/observatory/runtime/i18n';
 const bridge = (call: ReturnType<typeof vi.fn>) => ({ localSecurityReview: call }) as Host;
 const start = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Choose result and compare' }));
@@ -351,4 +353,26 @@ it('labels expired desktop metadata without dropping displayed bytes or hiding e
   expect(screen.getByText('Display retained · desktop comparison unavailable')).toBeVisible();
   await start();
   expect(await screen.findByText('Retained for this window · unreviewed')).toBeVisible();
+});
+
+it('formats the captured time in the selected language without changing the instant', async () => {
+  // Noon UTC keeps a two-digit local day in every timezone.
+  const createdAt = '2026-10-19T12:00:00.000Z';
+  const day = new Date(createdAt).getDate();
+  const result = { ...previewResultReview(), createdAt };
+  const call = vi.fn().mockResolvedValue({ success: true, result });
+  const { container } = render(ResultReview, { host: bridge(call) });
+  await start();
+  await screen.findByText('Stop unconfirmed');
+  const time = container.querySelector('time');
+  try {
+    expect(time).toHaveAttribute('datetime', createdAt);
+    expect(time?.textContent).toContain(`10/${day}/2026`);
+    language.set('pt');
+    await tick();
+    expect(time).toHaveAttribute('datetime', createdAt);
+    expect(time?.textContent).toContain(`${day}/10/2026`);
+  } finally {
+    language.set('en');
+  }
 });

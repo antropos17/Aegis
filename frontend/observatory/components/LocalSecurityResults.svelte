@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
-  import { t } from '../runtime/i18n';
+  import { t, language } from '../runtime/i18n';
+  import { capturedTime } from '../runtime/captured-time';
   import { record } from '../runtime/host';
   import {
     localEvidence,
@@ -142,7 +143,7 @@
     </div>
     <div class="source"><Icon name="folder" /><span>{review.directory}</span></div>
     <p class="muted">
-      {new Date(review.createdAt).toLocaleString()} · {$t(
+      {$t(capturedTime(review.createdAt, $language))} · {$t(
         preview ? 'Simulated result' : 'Local review',
       )}
     </p>

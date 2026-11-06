@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
   import { invoke, record, type Host } from '../runtime/host';
-  import { t } from '../runtime/i18n';
+  import { t, language } from '../runtime/i18n';
+  import { capturedTime } from '../runtime/captured-time';
   import {
     importedResultReview,
     resultReviewError,
@@ -188,7 +189,7 @@
         </dl>
         <small
           >{$t('Captured at:')}
-          <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time
+          <time datetime={result.createdAt}>{$t(capturedTime(result.createdAt, $language))}</time
           ></small
         >
         <p>

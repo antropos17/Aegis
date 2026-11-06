@@ -362,3 +362,36 @@ it.each([
   });
   expect(screen.queryByText(/is configured|was configured/)).toBeNull();
 });
+
+it('formats discovery and configuration times in the selected language without changing the instant', async () => {
+  // Noon UTC keeps a two-digit local day in every timezone.
+  const observedAt = Date.UTC(2026, 9, 19, 12);
+  const local = new Date(observedAt);
+  const docker = snapshot('docker');
+  render(ContainerCandidates, {
+    dockerSnapshot: {
+      ...docker,
+      observedAt,
+      candidates: [
+        {
+          ...docker.candidates[0],
+          configuration: { status: 'observed', observedAt, networkMode: 'host' },
+        },
+      ],
+    },
+    podmanSnapshot: { ...snapshot('podman'), observedAt, candidates: [] },
+  });
+  const times = () => [...document.querySelectorAll('time')];
+  expect(times()).toHaveLength(3);
+  for (const time of times()) {
+    expect(time).toHaveAttribute('datetime', '2026-10-19T12:00:00.000Z');
+    expect(time.textContent).toContain(`10/${local.getDate()}/2026`);
+  }
+  language.set('pt');
+  await tick();
+  expect(times()).toHaveLength(3);
+  for (const time of times()) {
+    expect(time).toHaveAttribute('datetime', '2026-10-19T12:00:00.000Z');
+    expect(time.textContent).toContain(`${local.getDate()}/10/2026`);
+  }
+});
