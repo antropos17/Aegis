@@ -39,7 +39,7 @@ const catalogs = writable(new Map<string, Catalog>([['pt', portugueseMessages]])
 const pending = new Map<string, Promise<void>>();
 
 /** Fetch a language's catalog once; until it arrives, and if it fails, copy stays in English.
- * @param locale Saved language @returns Resolves when the catalog is ready @since 0.24.0-beta
+ * @param locale Saved language @returns Resolves when the catalog is ready @since 0.25.0-beta
  */
 export function loadCatalog(locale: string): Promise<void> {
   const load = loaders[locale];
@@ -59,7 +59,7 @@ export function loadCatalog(locale: string): Promise<void> {
 language.subscribe((locale) => void loadCatalog(locale));
 
 /** BCP 47 tag for a saved language, for `lang` attributes and date formatting.
- * @param locale Saved language @returns Locale tag, English when unknown @since 0.24.0-beta
+ * @param locale Saved language @returns Locale tag, English when unknown @since 0.25.0-beta
  */
 export function languageTag(locale: string): string {
   return LANGUAGE_OPTIONS.find((option) => option.code === locale)?.tag ?? 'en';
