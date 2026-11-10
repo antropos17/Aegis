@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { LANGUAGE_OPTIONS, languageTag, translator } from '../../frontend/observatory/runtime/i18n';
+import {
+  LANGUAGE_OPTIONS,
+  languageTag,
+  loadCatalog,
+  translator,
+} from '../../frontend/observatory/runtime/i18n';
 import german from '../../frontend/observatory/translations/de.json';
 import spanish from '../../frontend/observatory/translations/es.json';
 import french from '../../frontend/observatory/translations/fr.json';
@@ -70,8 +75,10 @@ describe('Observatory localization', () => {
     }
   });
 
-  it('translates every offered language and tags it for dates and assistive technology', () => {
+  it('translates every offered language and tags it for dates and assistive technology', async () => {
+    expect(translator('ru')('Language')).toBe('Language');
     for (const { code } of LANGUAGE_OPTIONS.filter((option) => option.code !== 'en')) {
+      await loadCatalog(code);
       expect(translator(code)('Language'), code).not.toBe('Language');
     }
     expect(translator('ru')('New English message')).toBe('New English message');

@@ -1,14 +1,8 @@
-import { derived } from 'svelte/store';
+import { derived, get, writable } from 'svelte/store';
 import { language, LANGUAGE_OPTIONS } from '../../../src/renderer/lib/i18n/index.js';
 import legacyEnglish from '../../../src/renderer/lib/i18n/translations/en.json';
 import legacyPortuguese from '../../../src/renderer/lib/i18n/translations/pt.json';
-import german from '../translations/de.json';
-import spanish from '../translations/es.json';
-import french from '../translations/fr.json';
-import japanese from '../translations/ja.json';
 import portuguese from '../translations/pt-BR.json';
-import russian from '../translations/ru.json';
-import chinese from '../translations/zh-CN.json';
 
 export { language, LANGUAGE_OPTIONS };
 type Variables = Record<string, unknown>;
@@ -27,16 +21,42 @@ function includeLegacy(english: Dictionary, translated: Dictionary): void {
 includeLegacy(legacyEnglish, legacyPortuguese);
 for (const [key, value] of Object.entries(portuguese)) portugueseMessages.set(key, value);
 
+type Catalog = ReadonlyMap<string, string>;
+type CatalogModule = { default: Record<string, string> };
+
+// Other languages ship as separate chunks, fetched the first time someone selects them.
+const loaders: Record<string, () => Promise<CatalogModule>> = {
+  es: () => import('../translations/es.json'),
+  fr: () => import('../translations/fr.json'),
+  de: () => import('../translations/de.json'),
+  ja: () => import('../translations/ja.json'),
+  zh: () => import('../translations/zh-CN.json'),
+  ru: () => import('../translations/ru.json'),
+};
+
 // English message → translation, per language code; a missing message falls back to English.
-const catalogs = new Map<string, ReadonlyMap<string, string>>([
-  ['pt', portugueseMessages],
-  ['es', new Map(Object.entries(spanish))],
-  ['fr', new Map(Object.entries(french))],
-  ['de', new Map(Object.entries(german))],
-  ['ja', new Map(Object.entries(japanese))],
-  ['zh', new Map(Object.entries(chinese))],
-  ['ru', new Map(Object.entries(russian))],
-]);
+const catalogs = writable(new Map<string, Catalog>([['pt', portugueseMessages]]));
+const pending = new Map<string, Promise<void>>();
+
+/** Fetch a language's catalog once; until it arrives, and if it fails, copy stays in English.
+ * @param locale Saved language @returns Resolves when the catalog is ready @since 0.24.0-beta
+ */
+export function loadCatalog(locale: string): Promise<void> {
+  const load = loaders[locale];
+  if (!load || get(catalogs).has(locale)) return Promise.resolve();
+  let request = pending.get(locale);
+  if (!request) {
+    request = load()
+      .then(({ default: messages }) =>
+        catalogs.update((loaded) => new Map(loaded).set(locale, new Map(Object.entries(messages)))),
+      )
+      .catch(() => undefined)
+      .finally(() => pending.delete(locale));
+    pending.set(locale, request);
+  }
+  return request;
+}
+language.subscribe((locale) => void loadCatalog(locale));
 
 /** BCP 47 tag for a saved language, for `lang` attributes and date formatting.
  * @param locale Saved language @returns Locale tag, English when unknown @since 0.24.0-beta
@@ -49,7 +69,7 @@ export function languageTag(locale: string): string {
  * @param locale Saved language @returns Message formatter @since 0.14.1
  */
 export function translator(locale: string): (message: string, variables?: Variables) => string {
-  const catalog = catalogs.get(locale);
+  const catalog = get(catalogs).get(locale);
   return (message, variables) => {
     const template = catalog?.get(message) ?? message;
     return variables
@@ -61,4 +81,4 @@ export function translator(locale: string): (message: string, variables?: Variab
 }
 
 /** Reactive UI formatter; changing language updates mounted and newly opened workspaces. */
-export const t = derived(language, translator);
+export const t = derived([language, catalogs], ([$language]) => translator($language));
