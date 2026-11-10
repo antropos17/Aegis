@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { language, LANGUAGE_OPTIONS, t } from '../runtime/i18n';
+  import { language, languageTag, LANGUAGE_OPTIONS, t } from '../runtime/i18n';
   import { languagePersisted } from '../../../src/renderer/lib/i18n/index.js';
 </script>
 
@@ -15,9 +15,7 @@
   >
   <select aria-label={$t('Language')} bind:value={$language}>
     {#each LANGUAGE_OPTIONS as option (option.code)}
-      <option value={option.code} lang={option.code === 'pt' ? 'pt-BR' : 'en'}
-        >{option.label}</option
-      >
+      <option value={option.code} lang={languageTag(option.code)}>{option.label}</option>
     {/each}
   </select>
 </label>

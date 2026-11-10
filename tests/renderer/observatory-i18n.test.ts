@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { translator } from '../../frontend/observatory/runtime/i18n';
+import { LANGUAGE_OPTIONS, languageTag, translator } from '../../frontend/observatory/runtime/i18n';
+import german from '../../frontend/observatory/translations/de.json';
+import spanish from '../../frontend/observatory/translations/es.json';
+import french from '../../frontend/observatory/translations/fr.json';
+import japanese from '../../frontend/observatory/translations/ja.json';
 import portuguese from '../../frontend/observatory/translations/pt-BR.json';
+import russian from '../../frontend/observatory/translations/ru.json';
+import chinese from '../../frontend/observatory/translations/zh-CN.json';
 import { toolContextView } from '../../frontend/observatory/runtime/tool-context-display';
 
 describe('Observatory localization', () => {
@@ -43,6 +49,35 @@ describe('Observatory localization', () => {
         expect(Object.hasOwn(portuguese, message), `${file}: ${message}`).toBe(true);
       }
     }
+  });
+
+  it('keeps the placeholders of every message in the other selectable languages', () => {
+    const placeholders = (value: string) =>
+      [...value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    const catalogs = {
+      de: german,
+      es: spanish,
+      fr: french,
+      ja: japanese,
+      ru: russian,
+      zh: chinese,
+    };
+    for (const [code, catalog] of Object.entries(catalogs)) {
+      for (const [source, translated] of Object.entries(catalog)) {
+        expect(translated.trim(), `${code}: ${source}`).not.toBe('');
+        expect(placeholders(translated), `${code}: ${source}`).toEqual(placeholders(source));
+      }
+    }
+  });
+
+  it('translates every offered language and tags it for dates and assistive technology', () => {
+    for (const { code } of LANGUAGE_OPTIONS.filter((option) => option.code !== 'en')) {
+      expect(translator(code)('Language'), code).not.toBe('Language');
+    }
+    expect(translator('ru')('New English message')).toBe('New English message');
+    expect(languageTag('pt')).toBe('pt-BR');
+    expect(languageTag('zh')).toBe('zh-CN');
+    expect(languageTag('unsupported')).toBe('en');
   });
 
   it('translates the dynamically selected native setup failure', () => {
