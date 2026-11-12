@@ -1671,7 +1671,7 @@
   "Capture source": "Захватить источник",
   "Original-state confidence": "Уверенность в исходном состоянии",
   "Retained status": "Сохраненный статус",
-  "Writer status": "Статус автора",
+  "Writer status": "Состояние процесса, изменяющего файлы",
   "Simulated imported artifact": "Симулированный импортированный артефакт",
   "Imported artifact": "Импортированный артефакт",
   "Complete imported snapshots · originals unverified": "Полные импортированные снимки · оригиналы не проверены",
