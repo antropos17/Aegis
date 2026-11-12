@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { t, language } from './runtime/i18n';
+  import { t, language, languageTag } from './runtime/i18n';
 
   $effect(() => {
-    document.documentElement.lang = $language === 'pt' ? 'pt-BR' : 'en';
+    document.documentElement.lang = languageTag($language);
   });
 
   import { onMount, tick, untrack } from 'svelte';

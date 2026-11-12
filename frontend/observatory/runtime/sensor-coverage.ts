@@ -1,4 +1,5 @@
 import { record, type Telemetry } from './host';
+import { languageTag } from './i18n';
 
 type Labels = Readonly<Record<string, string>>;
 export interface SensorCoverage {
@@ -196,7 +197,7 @@ export function coverageTime(value: unknown, locale: string): string {
     Number.isFinite(value) &&
     value > 0 &&
     value <= 8640000000000000
-    ? new Date(value).toLocaleString(locale === 'pt' ? 'pt-BR' : 'en-US')
+    ? new Date(value).toLocaleString(languageTag(locale))
     : 'Not reported';
 }
 

@@ -7,17 +7,29 @@
  *   <p>{$t('agents.pid', { pid: 1234 })}</p>
  *
  * Adding a new language:
- *   1. Add a translations/xx.json file (copy en.json as template)
+ *   1. Add frontend/observatory/translations/<tag>.json (English message → translation)
  *   2. Add an entry to LANGUAGE_OPTIONS below
- *   3. Import the file in getTranslations()
+ *   3. Register the file in frontend/observatory/runtime/i18n.ts
  */
 
 import { writable, derived } from 'svelte/store';
 import en from './translations/en.json';
 import pt from './translations/pt.json';
 
+/** Available language options for the Settings language selector; `tag` is the BCP 47 locale. */
+export const LANGUAGE_OPTIONS = [
+  { code: 'en', label: 'English', tag: 'en' },
+  { code: 'pt', label: 'Português', tag: 'pt-BR' },
+  { code: 'es', label: 'Español', tag: 'es' },
+  { code: 'fr', label: 'Français', tag: 'fr' },
+  { code: 'de', label: 'Deutsch', tag: 'de' },
+  { code: 'ja', label: '日本語', tag: 'ja' },
+  { code: 'zh', label: '简体中文', tag: 'zh-CN' },
+  { code: 'ru', label: 'Русский', tag: 'ru' },
+];
+
 const STORAGE_KEY = 'aegis.language';
-const SUPPORTED = new Set(['en', 'pt']);
+const SUPPORTED = new Set(LANGUAGE_OPTIONS.map((option) => option.code));
 
 function getStoredLang() {
   try {
@@ -84,16 +96,3 @@ export const t = derived(language, ($lang) => {
     return result;
   };
 });
-
-/** Available language options for the Settings language selector. */
-export const LANGUAGE_OPTIONS = [
-  { code: 'en', label: 'English' },
-  { code: 'pt', label: 'Português' },
-  // Uncomment as translation files are added:
-  // { code: 'es', label: 'Español' },
-  // { code: 'fr', label: 'Français' },
-  // { code: 'de', label: 'Deutsch' },
-  // { code: 'ja', label: '日本語' },
-  // { code: 'zh', label: '中文' },
-  // { code: 'ru', label: 'Russian' },
-];
