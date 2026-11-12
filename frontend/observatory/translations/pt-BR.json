@@ -180,6 +180,7 @@
   "Analysis scope": "Escopo da análise",
   "Run analysis asks for confirmation before sending recorded activity metadata to Anthropic; API charges may apply.": "Executar análise pede confirmação antes de enviar metadados de atividades registradas à Anthropic; podem ocorrer cobranças de API.",
   "Animations": "Animações",
+  "Anomaly: {value0} (PID {value1}) score {value2}": "Anomalia: {value0} (PID {value1}) pontuação {value2}",
   "Anthropic": "Anthropic",
   "Anthropic API key": "Chave de API da Anthropic",
   "Anthropic analysis": "Análise da Anthropic",
