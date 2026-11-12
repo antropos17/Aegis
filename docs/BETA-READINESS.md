@@ -1,14 +1,41 @@
 # Windows beta readiness
 
-Historical readiness record for **0.19.2-beta**, published on 6 October 2026,
-covering Windows desktop monitoring and explicitly reviewed selected-action
-workflows. Check [GitHub Releases](https://github.com/antropos17/Aegis/releases)
-for current published versions and complete artifacts. The hashes and qualification
-below apply only to the named artifacts and revisions, not to later installers.
-Changing the prerelease channel does not itself publish an installer or establish
-release readiness.
+Release context checked on 13 November 2026. The published Windows beta is
+**0.24.0-beta**. Release integrity and source CI are recorded first; historical
+desktop and native qualification below remain bound to their own packages and
+revisions. A successful build or signature check does not establish runtime safety
+or qualify a later installer.
 
 ## Published Windows beta
+
+[0.24.0-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.24.0-beta)
+was published on 6 November 2026 from
+`15d552526e68f79343df1c19d920313fae96537d` through
+[PR #1230](https://github.com/antropos17/Aegis/pull/1230).
+[Release PR CI](https://github.com/antropos17/Aegis/actions/runs/42189195970) and
+[release master CI](https://github.com/antropos17/Aegis/actions/runs/42190906791)
+passed all five required contexts. The
+[release workflow](https://github.com/antropos17/Aegis/actions/runs/42190906930)
+built the Windows installer, checked the packaged .NET runtime, signed and verified
+the manifest against the committed public key, and uploaded all three assets.
+
+The downloaded installer is 188,189,242 bytes with SHA-256
+`b8861a4809d4c9625b385f8e97666b81a162e4bc1ca39ee9c667b99bcf1ec54b`.
+Offline Ed25519 signature, size and hash verification passed on 6 November. The
+signed manifest names the exact repository, release tag and commit; the GitHub
+asset digest agrees. The downloaded executable was not installed or launched in
+that verification. This is publication and integrity evidence, separate from
+installed-runtime acceptance.
+
+Release notes include safer JSON/CSV replacement, explicit pricing uncertainty,
+captured-result date localization, Local security result-comparison guidance and
+the installed Windows native owner-console route for selected deletion.
+That route's earlier qualification used source
+`bbff1fc3462e215dd5f3ded43077525487ffad38` in
+[run 41517586509](https://github.com/antropos17/Aegis/actions/runs/41517586509).
+It does not qualify every workflow in the 0.24.0-beta installer.
+
+## Historical desktop qualification: 0.19.2-beta
 
 [0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta)
 was published on 6 October 2026 (UTC) from `0bda7dc` through
