@@ -42,7 +42,17 @@ AEGIS reads measured token subtotals from matching local Claude Code session dat
 Unreadable data, bounded reads and other coverage limits can leave them incomplete
 or delayed. Dollar amounts use a local rate table and remain estimates; provider
 billing adjustments are not inferred. Other agents can show estimated usage.
+Unverified local rates and uncertain cache pricing are marked separately from
+measured token counts; a model's presence in the rate table does not verify its price.
 See [token accounting](TOKEN-ACCOUNTING.md).
+
+## Which interface languages are available?
+
+The published 0.24.0-beta interface supports English and Brazilian Portuguese.
+Choose the language in **Settings → Appearance → Language**. Captured Local
+security, imported-result and container timestamps follow that choice.
+Additional language catalogs are proposed in [active PRs](https://github.com/antropos17/Aegis/pulls);
+an open translation PR does not change an installed release.
 
 ## Does monitoring stay local?
 
@@ -61,6 +71,11 @@ installer, `manifest.json` and `manifest.json.sig` from the same release, then
 follow [release verification](RELEASE-VERIFICATION.md). Verification checks origin
 and integrity against the signed manifest; it does not establish code safety or
 reproducible builds.
+
+The [0.24.0-beta release](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.24.0-beta),
+published on 6 November 2026, includes the Windows installer and both manifest
+files. Its [readiness record](BETA-READINESS.md) names the source commit, published
+file hash and scope of the checks performed.
 
 ## Why can source documentation differ from my installed build?
 
