@@ -97,7 +97,14 @@
     }
     for (const id of anomalyTracker.ingest(scores)) {
       const agent = agents[id];
-      addToast(`Anomaly: ${agent.agent} (PID ${agent.pid}) score ${scores[id]}`, 'warning');
+      addToast(
+        $t('Anomaly: {value0} (PID {value1}) score {value2}', {
+          value0: agent.agent,
+          value1: agent.pid,
+          value2: scores[id],
+        }),
+        'warning',
+      );
     }
   });
   $effect(() => {

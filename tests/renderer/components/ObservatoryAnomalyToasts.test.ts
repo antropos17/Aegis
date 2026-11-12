@@ -2,11 +2,13 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
+import { language } from '../../../frontend/observatory/runtime/i18n';
 import type { DetectedAgent } from '../../../src/shared/types';
 import { clearAllToasts } from '../../../src/renderer/lib/stores/toast';
 
 afterEach(() => {
   clearAllToasts();
+  language.set('en');
   vi.useRealTimers();
 });
 
@@ -100,4 +102,60 @@ it('quietly seeds an initially unmeasured instance, while a newly arriving measu
     },
   });
   expect(screen.getByText('Anomaly: Claude (PID 30) score 80')).toBeInTheDocument();
+});
+
+it('renders the anomaly warning in Portuguese when Portuguese is active', async () => {
+  language.set('pt');
+  const a = process(10, 111);
+  const initial = {
+    ...emptyTelemetry(),
+    stale: false,
+    agents: [a],
+    anomalies: { [a.instanceId]: 0 },
+  };
+  const view = render(Notifications, { telemetry: initial });
+  await view.rerender({
+    telemetry: { ...initial, anomalies: { [a.instanceId]: 50 } },
+  });
+  expect(screen.getByText('Anomalia: Claude (PID 10) pontuação 50')).toBeInTheDocument();
+  // The same snapshot again admits nothing new: one warning per transition.
+  await view.rerender({
+    telemetry: { ...initial, anomalies: { [a.instanceId]: 50 } },
+  });
+  expect(screen.getAllByText(/Anomalia: Claude/)).toHaveLength(1);
+});
+
+it('keeps an admitted toast in its admission language when the language changes', async () => {
+  const a = process(10, 111);
+  const initial = {
+    ...emptyTelemetry(),
+    stale: false,
+    agents: [a],
+    anomalies: { [a.instanceId]: 0 },
+  };
+  const view = render(Notifications, { telemetry: initial });
+  await view.rerender({
+    telemetry: { ...initial, anomalies: { [a.instanceId]: 50 } },
+  });
+  expect(screen.getByText('Anomaly: Claude (PID 10) score 50')).toBeInTheDocument();
+  language.set('pt');
+  // No relabel and no second, translated copy of the live toast.
+  expect(screen.getByText('Anomaly: Claude (PID 10) score 50')).toBeInTheDocument();
+  expect(screen.queryByText(/Anomalia: Claude/)).toBeNull();
+});
+
+it('shows a synthetic agent name as text rather than markup', async () => {
+  const a = { ...process(10, 111), agent: '<b>Claude</b>' };
+  const initial = {
+    ...emptyTelemetry(),
+    stale: false,
+    agents: [a],
+    anomalies: { [a.instanceId]: 0 },
+  };
+  const view = render(Notifications, { telemetry: initial });
+  await view.rerender({
+    telemetry: { ...initial, anomalies: { [a.instanceId]: 50 } },
+  });
+  expect(screen.getByText('Anomaly: <b>Claude</b> (PID 10) score 50')).toBeInTheDocument();
+  expect(document.querySelector('.notifications b')).toBeNull();
 });
