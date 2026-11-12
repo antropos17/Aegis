@@ -138,7 +138,24 @@ internal static class ProcessFixture
                     var beforeExit = owner.GetState();
                     Need(beforeExit.RootAlive && beforeExit.ActiveProcesses == 2 && beforeExit.Released && !beforeExit.CleanupUnknown);
                     File.WriteAllText(Path.Combine(profile, "fixture-exit-now"), "exit-original-root");
+                    checkpoint = "root-exit-wait";
                     Need(WaitForSingleObject(originalRootWait, 5000) == 0);
+                    // A signaled root handle and the Job's active-process count
+                    // are separate observations. Wait for the accounting witness
+                    // too; never turn root exit alone into descendant closure.
+                    checkpoint = "root-exit-job-accounting";
+                    var accounting = Stopwatch.StartNew();
+                    while (true)
+                    {
+                        var settled = owner.GetState();
+                        observedRunning = "alive=" + Bit(settled.RootAlive) + ",active=" + settled.ActiveProcesses +
+                            ",released=" + Bit(settled.Released) + ",unknown=" + Bit(settled.CleanupUnknown);
+                        Need(!settled.RootAlive && settled.Released && !settled.CleanupUnknown &&
+                            (settled.ActiveProcesses == 1 || settled.ActiveProcesses == 2));
+                        if (settled.ActiveProcesses == 1) break;
+                        Need(accounting.ElapsedMilliseconds < 2000);
+                        Thread.Sleep(2);
+                    }
                 }
                 var running = owner.GetState(); runningCount = running.ActiveProcesses;
                 if (mode == "root-exit") { rootExitState = running.State; rootExitedWithDescendant = !running.RootAlive && running.ActiveProcesses == 1; Need(rootExitedWithDescendant); }
