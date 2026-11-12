@@ -20,6 +20,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.25.0-beta (2026-11-12)
+
+## What's Changed
+* docs: refresh GitHub overview for the published Windows beta by @antropos17 in https://github.com/antropos17/Aegis/pull/1244
+* chore(deps): bump dependency-cruiser from 18.7.0 to 18.7.2 in /tools/development in the development-minor-patch group by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1241
+* chore(deps-dev): bump jsdom from 30.1.3 to 31.0.0 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1240
+* fix(observatory): route the anomaly toast through the i18n catalog by @tylrcc in https://github.com/antropos17/Aegis/pull/1243
+* feat(i18n): add Spanish, French, German, Japanese, Chinese and Russian by @ufortstephen in https://github.com/antropos17/Aegis/pull/1242
+* chore(deps): bump the npm-minor-patch group with 8 updates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1239
+
+## New Contributors
+* @tylrcc made their first contribution in https://github.com/antropos17/Aegis/pull/1243
+* @ufortstephen made their first contribution in https://github.com/antropos17/Aegis/pull/1242
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.24.0-beta...aegis-v0.25.0-beta
+
 ## 0.24.0-beta (2026-11-06)
 
 ## What's Changed
