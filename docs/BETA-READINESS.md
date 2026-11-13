@@ -1,12 +1,43 @@
 # Windows beta readiness
 
-Release context checked on 13 November 2026. The published Windows beta is
-**0.24.0-beta**. Release integrity and source CI are recorded first; historical
+Release context checked on 13 November 2026 (UTC+04:00). The published Windows beta is
+**0.25.0-beta**. Release integrity and source CI are recorded first; historical
 desktop and native qualification below remain bound to their own packages and
 revisions. A successful build or signature check does not establish runtime safety
 or qualify a later installer.
 
 ## Published Windows beta
+
+[0.25.0-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.25.0-beta)
+was published on 12 November 2026 (UTC) from
+`d72101a5c48d246a500f23ee93d5431ce1772fe1` through
+[PR #1245](https://github.com/antropos17/Aegis/pull/1245).
+[Release PR CI](https://github.com/antropos17/Aegis/actions/runs/43330144013) and
+[release master CI](https://github.com/antropos17/Aegis/actions/runs/43332204551)
+passed all five required contexts. The release PR's
+[Windows fixture lane](https://github.com/antropos17/Aegis/actions/runs/43330143902)
+also passed; it exercises disposable native fixtures, without installer, VM or
+authenticated-provider acceptance. The
+[release workflow](https://github.com/antropos17/Aegis/actions/runs/43332204864)
+built the Windows installer, checked the packaged .NET runtime, signed and verified
+the manifest against the committed public key, and uploaded all three assets.
+
+The downloaded installer is 188,463,199 bytes with SHA-256
+`0b181167a78fbadbbff41130eeda4af2409a20c5f8b8d6965fd17bba54a6580e`.
+Offline Ed25519 signature, size and hash verification passed. The signed manifest
+names the exact repository, release tag and commit; the GitHub asset digest agrees.
+The downloaded executable was not installed or launched during that verification.
+These results establish publication and integrity, without fresh installed-runtime
+acceptance for this package.
+
+The release adds six language catalogs for eight interface languages, routes
+anomaly toasts through translation and updates runtime/development dependencies.
+The new catalogs use machine translations with targeted corrections and English
+fallback; they are not fully qualified native-language translations. Earlier
+export, pricing and selected-action capabilities remain present with their
+documented limits. See the [language FAQ](FAQ.md#which-interface-languages-are-available).
+
+## Historical release integrity: 0.24.0-beta
 
 [0.24.0-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.24.0-beta)
 was published on 6 November 2026 from

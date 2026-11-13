@@ -117,6 +117,8 @@ report whether opening succeeded. They do not execute commands or modify setting
 The simulated preview disables these external buttons. Online documentation tracks
 the current source version and may differ from an installed build.
 
-The interface supports its existing English and Brazilian Portuguese locales,
-four themes and enlarged text. Disclosures use native keyboard behavior; task
-navigation and review jumps retain visible focus.
+The 0.25.0-beta interface offers eight languages, four themes and enlarged text.
+Choose a locale in Settings; the [language FAQ](FAQ.md#which-interface-languages-are-available)
+lists the languages, machine-translated catalog scope and English fallback.
+Disclosures use native keyboard behavior; task navigation and review jumps retain
+visible focus.

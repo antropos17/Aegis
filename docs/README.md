@@ -11,7 +11,10 @@ Hyper-V execution. It maps entry points to their coverage limits. The
 [root README](../README.md#current-development) summarizes source development;
 installed features depend on the release tag. For common questions, see the [FAQ](FAQ.md).
 
-Find current Windows beta installers on [GitHub Releases](https://github.com/antropos17/Aegis/releases).
+The current published Windows beta is
+[0.25.0-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.25.0-beta),
+released on 12 November 2026 (UTC), with eight interface languages. Download its
+installer and both manifest files, then follow [release verification](RELEASE-VERIFICATION.md).
 The [readiness record](BETA-READINESS.md) contains dated, artifact-specific
 qualification evidence and limits; those records do not qualify later installers.
 

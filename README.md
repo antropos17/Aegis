@@ -52,16 +52,19 @@ remain experimental. [Capabilities and limits](docs/CAPABILITIES.md).
 > Each installer contains the features at its release tag.
 > [Verify your download](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
 
-## 0.24.0-beta highlights
+## 0.25.0-beta highlights
 
-The [Windows beta published on 6 November 2026](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.24.0-beta)
+The [Windows beta published on 12 November 2026 (UTC)](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.25.0-beta)
 includes a signed installer manifest and these improvements:
 
-- **Keep an earlier export when a write fails.** JSON and CSV activity exports write a temporary file before replacing the chosen destination.
-- **See uncertainty in cost estimates.** Unverified local rates stay marked as estimated pricing while measured token counts remain separate. [Token accounting](docs/TOKEN-ACCOUNTING.md).
-- **Read captured results in your selected language.** Local security, imported-result and container-capture timestamps follow the English or Portuguese interface setting.
-- **Follow the returned-result comparison guide.** The [Local security guide](docs/LOCAL-SECURITY-UI.md#compare-a-returned-result) explains changed files, incomplete snapshots and retained comparisons. Imported claims do not authorize a launch or project export.
-- **Review a selected deletion from an installed Windows console.** The [native owner-console route](docs/ACTION-DELETE-FILE.md#selected-file-mcp-terminal-route) requires explicit setup and confirmation for one exact file operation.
+- **Choose from eight interface languages.** English, Brazilian Portuguese, Spanish, French, German, Japanese, Simplified Chinese and Russian are available in Settings. The six new catalogs use machine translations with targeted corrections; missing messages fall back to English. [Language details](docs/FAQ.md#which-interface-languages-are-available).
+- **Read translated anomaly notifications.** Anomaly toasts now use the interface translation catalog, with English fallback for missing messages.
+- **Read captured results in your selected locale.** Local security, imported-result and container-capture timestamps follow the selected interface language.
+
+The release retains safer JSON/CSV export replacement, explicit pricing uncertainty,
+Local security result comparison and the explicitly configured Windows owner-console
+route. [Release notes](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.25.0-beta)
+also list the runtime and development dependency updates.
 
 The [readiness record](docs/BETA-READINESS.md) distinguishes release integrity,
 source checks and the runtime scenarios tested on specific earlier packages.
@@ -246,12 +249,12 @@ its acceptance boundaries. [Source changes](CHANGELOG.md) and the
 checkout and evidence. Each qualification record names its own tested revision
 and package; a source change does not update a published installer.
 
-The 0.24.0-beta release includes safer activity exports, explicit pricing
-uncertainty, captured-result date localization and the installed Windows
-owner-console route. [Release notes](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.24.0-beta)
-link each merged change. Follow [active PRs](https://github.com/antropos17/Aegis/pulls)
-for proposed translations and dependency updates; an open PR is not a shipped
-feature. The published interface supports English and Brazilian Portuguese.
+The published [0.25.0-beta release](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.25.0-beta)
+includes six additional language catalogs, translated anomaly notifications and
+dependency updates. Its interface offers eight languages; the six new catalogs
+still benefit from native-language review. See the [language FAQ](docs/FAQ.md#which-interface-languages-are-available)
+for English fallback behavior. Follow [active PRs](https://github.com/antropos17/Aegis/pulls)
+for proposed work; installed features remain tied to the release tag.
 
 The following is a historical snapshot from 18 October 2026, through
 [#975](https://github.com/antropos17/Aegis/pull/975) at
