@@ -1,12 +1,18 @@
 # Private owned Claude hook writer
 
-`src/main/claude-hook-writer.js` is an independently callable, private transaction
-library over an explicitly supplied target capability. It consumes the existing
-[pure planner](CLAUDE-HOOK-PLAN.md). It has no production caller, filesystem
-implementation, profile discovery, IPC handler, UI, hook activation, command
-execution or provider qualification. This is a prerequisite for later owned-file
-installation work. It supplies no completion evidence for the pending W5 owner
-prerequisite or the independent Cedar policy owner work.
+`src/main/claude-hook-writer.js` is a private transaction library over an
+explicitly supplied target capability. It consumes the existing
+[pure planner](CLAUDE-HOOK-PLAN.md). The main process creates the fixed-profile
+app in [`main.js`](../src/main/main.js); its
+[`claude-hook-app.js`](../src/main/claude-hook-app.js) calls the
+[owner-review capability](CLAUDE-HOOK-REVIEW.md), which creates the writer
+internally and uses the [Windows IO provider](CLAUDE-HOOK-WINDOWS-IO.md). The
+[application profile review](CLAUDE-HOOK-APP.md) documents that connection. The
+writer itself does not discover profiles, implement filesystem access, expose
+IPC or UI, activate hooks, execute commands or qualify a provider. Its injected
+IO contract does not qualify the application's fixed Windows profile route. It
+supplies no completion evidence for the pending W5 owner prerequisite or the
+independent Cedar policy owner work.
 
 The module preserves the existing action-policy hook route. Installation status
 does not establish that Claude loaded a configuration, that a hook was observed,
@@ -63,10 +69,12 @@ confirmation, the trusted caller uses `apply(ticket, true)`. Only the most recen
 ticket from that session is accepted. Failed confirmation does not consume it;
 an accepted attempt consumes it before any IO. A boolean cannot prove a human
 decision: the trusted caller owns that boundary. No UI or renderer should use
-these methods directly. The dormant [owner-review capability](CLAUDE-HOOK-REVIEW.md) supplies a private
-owner-bound, expiring plan ID over one internally owned writer. Application IPC,
-private renderer presentation and the real UI confirmation bridge remain separate
-work; this capability does not expose writer tickets or grant profile authority.
+these methods directly. The [owner-review capability](CLAUDE-HOOK-REVIEW.md)
+supplies a private owner-bound, expiring plan ID over one internally owned writer.
+The application connects that capability to its private renderer and native
+confirmation flow through the main-process profile route documented in
+[application profile review](CLAUDE-HOOK-APP.md). This does not expose writer
+tickets or grant the writer profile authority.
 
 Every accepted mutation attempt follows this sequence:
 
@@ -138,10 +146,12 @@ audit logs, exports, telemetry and ordinary reports. `apply` failures and
 
 Expected hashes are separated from mutable private-storage records in the live
 session. They are not durable authentication or protection from a malicious
-capability owner. There is no tested crash recovery, durable journal, secure
-erase, private-storage cleanup, real profile installation, native atomic commit,
-hook/provider invocation or denial-enforcement claim. Storage owners must define
-retention and recovery before integration; this writer never deletes backups.
+capability owner. These writer tests do not establish crash recovery, a durable
+journal, secure erase, private-storage cleanup, native atomic commit, hook
+observation or denial enforcement. The application profile route is described
+separately in [application profile review](CLAUDE-HOOK-APP.md); it does not
+qualify a general-purpose filesystem provider. Storage owners must define
+retention and recovery; this writer never deletes backups.
 
 Local tests use only injected owned fixture IO and synthetic secret canaries.
 They exercise exact-byte backup/readback, stale and substituted targets, guarded
