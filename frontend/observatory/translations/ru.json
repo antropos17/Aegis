@@ -180,7 +180,7 @@
   "Analysis scope": "Область анализа",
   "Run analysis asks for confirmation before sending recorded activity metadata to Anthropic; API charges may apply.": "Запуск анализа требует подтверждения перед отправкой записанных метаданных активности в Anthropic; могут применяться платы за API.",
   "Animations": "Анимации",
-  "Anomaly: {value0} (PID {value1}) score {value2}": "Аномалия: {value0} (PID {value1}) оценка {value2}",
+  "Anomaly: {value0} (PID {value1}) score {value2}": "Аномалия: {value0} (PID {value1}) балл {value2}",
   "Anthropic": "Anthropic",
   "Anthropic API key": "Ключ API Anthropic",
   "Anthropic analysis": "Анализ Anthropic",
