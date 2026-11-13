@@ -1,0 +1,36 @@
+name: Translate Observatory catalogs
+
+# Finds messages one Observatory catalog has and the others lack (plus literal
+# $t('…') text missing from all of them) and opens one pull request against
+# master with the translations. Nothing is written to master directly.
+on:
+  push:
+    branches: [master]
+    paths: ['frontend/observatory/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: translate-observatory-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ufortstephen/autolocalize-action@32e4e25158f432b76a2de9581f97f5bfa77e304d # localize-dev 0.35.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          api_key: ${{ secrets.LOCALIZE_DEV_API_KEY }}
+          mode: translate
+          working_directory: frontend/observatory
+          # pt-BR also reads the legacy renderer catalog, so it stays maintained by hand.
+          target_locales: es,fr,de,ja,zh-CN,ru
+          timeout_minutes: '10'
