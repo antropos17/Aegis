@@ -3,6 +3,9 @@
 Audit date: 2026-09-19. This records a documentation and repository-presentation
 review, not a security certification or a new installer release.
 
+The entries below are historical snapshots. For the current published beta and
+its exact verification evidence, use [Windows beta readiness](BETA-READINESS.md).
+
 ## Follow-up — 16 October 2026
 
 Source baseline: master `6001f2c295e42392967a845760c8fce14461b35a`, after PR #942.

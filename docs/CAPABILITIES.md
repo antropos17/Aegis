@@ -46,8 +46,10 @@ The active [navigation registry](../frontend/observatory/runtime/navigation.ts)
 and [desktop host](../frontend/observatory/runtime/host.ts) define the workspace
 entry points. Advanced navigation is the default. Simple navigation groups
 investigation, file checks and settings; Commands (`Ctrl K`) provides task search.
-English and Brazilian Portuguese, four themes, enlarged text and reduced motion
-are supported. See [guided workflows](OBSERVATORY-GUIDED-WORKFLOWS.md).
+Eight interface languages, four themes, enlarged text and reduced motion are
+available in 0.25.0-beta. The [language FAQ](FAQ.md#which-interface-languages-are-available)
+lists the locales, machine-translated catalog scope and English fallback.
+See [guided workflows](OBSERVATORY-GUIDED-WORKFLOWS.md).
 
 ## Review local files before use
 

@@ -48,11 +48,16 @@ See [token accounting](TOKEN-ACCOUNTING.md).
 
 ## Which interface languages are available?
 
-The published 0.24.0-beta interface supports English and Brazilian Portuguese.
-Choose the language in **Settings → Appearance → Language**. Captured Local
-security, imported-result and container timestamps follow that choice.
-Additional language catalogs are proposed in [active PRs](https://github.com/antropos17/Aegis/pulls);
-an open translation PR does not change an installed release.
+The published 0.25.0-beta interface offers English, Brazilian Portuguese, Spanish,
+French, German, Japanese, Simplified Chinese and Russian. Choose the language in
+**Settings → Appearance → Language**. Captured Local security, imported-result
+and container timestamps follow that choice; anomaly toasts use the translation
+catalog too.
+
+The six new catalogs are machine-translated with targeted corrections and still
+benefit from native-language review. Missing messages fall back to English.
+The six new catalogs load when first selected; until loading completes, or if it fails,
+their messages remain in English. Earlier installers retain their own language set.
 
 ## Does monitoring stay local?
 
@@ -72,8 +77,8 @@ follow [release verification](RELEASE-VERIFICATION.md). Verification checks orig
 and integrity against the signed manifest; it does not establish code safety or
 reproducible builds.
 
-The [0.24.0-beta release](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.24.0-beta),
-published on 6 November 2026, includes the Windows installer and both manifest
+The [0.25.0-beta release](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.25.0-beta),
+published on 12 November 2026 (UTC), includes the Windows installer and both manifest
 files. Its [readiness record](BETA-READINESS.md) names the source commit, published
 file hash and scope of the checks performed.
 
