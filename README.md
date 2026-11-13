@@ -48,7 +48,7 @@ remain experimental. [Capabilities and limits](docs/CAPABILITIES.md).
 
 [Install](#install) · [Use AEGIS](#use-aegis) · [FAQ](docs/FAQ.md) · [Roadmap](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute)
 
-> **Current source version**: 0.25.0-beta <!-- x-release-please-version -->
+> **Current source version**: 0.25.1-beta <!-- x-release-please-version -->
 > Each installer contains the features at its release tag.
 > [Verify your download](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
 
