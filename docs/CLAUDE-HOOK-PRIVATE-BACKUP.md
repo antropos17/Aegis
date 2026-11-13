@@ -1,12 +1,19 @@
 # Private Windows hook backup prerequisite
 
-`sidecar/hook-private-backup/` is an independently callable, framework-only
-`net10.0-windows` library and an owned-file fixture console. It provides a
-private backup storage prerequisite for the
-[owned hook writer](CLAUDE-HOOK-WRITER.md). A production caller, Node/native
-bridge, target-file writer, profile discovery, installation, IPC, UI and provider
-qualification remain separate work. This component does not establish full W6,
-hook observation or blocking.
+`sidecar/hook-private-backup/` is a framework-only `net10.0-windows` library and
+an owned-file fixture console. The main process creates the fixed-profile app in
+[`main.js`](../src/main/main.js); its
+[`claude-hook-app.js`](../src/main/claude-hook-app.js) connects the
+[owner-review capability](CLAUDE-HOOK-REVIEW.md) and the
+[Windows IO provider](CLAUDE-HOOK-WINDOWS-IO.md). That provider, implemented in
+[`claude-hook-windows-io.js`](../src/main/claude-hook-windows-io.js), uses this
+private backup store for the [owned hook writer](CLAUDE-HOOK-WRITER.md). The
+[transaction host](../sidecar/hook-transaction/Transaction.cs) opens and calls
+`PrivateBackupStore`. The
+[application profile review](CLAUDE-HOOK-APP.md) describes the fixed AEGIS-owned
+profile route. The storage library itself does not select a profile or target,
+expose IPC or UI, invoke hooks or qualify the provider. This route does not
+establish full W6, hook observation or blocking.
 
 ## Contract and ownership
 
@@ -29,8 +36,11 @@ record lookup, reference import, overwrite, deletion, restore or retention purge
 The hook writer must continue independently holding its expected original-byte
 and manifest digests. The store's private digests cannot establish the writer's
 ownership, and an on-disk manifest cannot grant restoration authority after
-restart. A separate, reviewed adapter would need to preserve these boundaries
-when translating the writer's manifest into exact UTF-8 bytes.
+restart. [`claude-hook-windows-io.js`](../src/main/claude-hook-windows-io.js)
+adapts the writer's manifest to the store's exact UTF-8 input and routes backup
+reads and writes to `PrivateBackupStore`. It preserves the writer's separate
+expected digests; the adapter does not make the store's private digests an
+ownership authority.
 
 Public outcomes are fixed `BackupStatus` values. The library emits no logs or
 raw exceptions. It never includes storage paths, account identifiers, ACL
