@@ -180,6 +180,7 @@
   "Analysis scope": "分析范围",
   "Run analysis asks for confirmation before sending recorded activity metadata to Anthropic; API charges may apply.": "运行分析会在将记录的活动元数据发送到Anthropic之前要求确认；可能会收取API费用。",
   "Animations": "动画",
+  "Anomaly: {value0} (PID {value1}) score {value2}": "异常: {value0} (PID {value1}) 分数 {value2}",
   "Anthropic": "Anthropic",
   "Anthropic API key": "Anthropic API密钥",
   "Anthropic analysis": "Anthropic分析",
