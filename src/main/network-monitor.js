@@ -719,6 +719,9 @@ async function scanNetworkConnections(agents, options = {}) {
     if (!Array.isArray(raw)) {
       throw new Error('tcp-provider-invalid-response');
     }
+    // Snapshot observation time: TCP enumeration completed, before DNS enrichment.
+    // This is neither socket creation time nor evidence of continuous coverage.
+    const observedAt = Date.now();
     if (scopeChanged()) return null;
     const seen = new Set();
     const deduped = raw.filter((c) => {
@@ -779,6 +782,7 @@ async function scanNetworkConnections(agents, options = {}) {
         // so every returned pid is in pidMap. Kept as a guard, not as a fallback that
         // invents data.
         agent: agent ? agent.agent : '',
+        timestamp: observedAt,
         pid: c.pid,
         // Same object, same call as the `agent` above — `pidMap` was built from the
         // agents this scan was invoked with, which is what makes the OS_TCP_OWNER_PID

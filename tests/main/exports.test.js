@@ -457,6 +457,46 @@ describe('exports', () => {
       expect(content).toContain('yes');
     });
 
+    it('exports recorded TCP observation time unchanged in later CSV exports', async () => {
+      const filePath = path.join(tmpDir, 'retained.csv');
+      const row = {
+        timestamp: 1700000001000,
+        agent: 'Claude',
+        remoteIp: '1.2.3.4',
+        remotePort: 443,
+        flagged: true,
+      };
+      initExporter({ netConns: [row] });
+      mockShowSaveDialog.mockResolvedValue({ filePath });
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect((await exporter.exportCsv()).success).toBe(true);
+        const line = fs
+          .readFileSync(filePath, 'utf8')
+          .split('\n')
+          .find((l) => l.includes(',network,'));
+        expect(line).toBe('2023-11-14T22:13:21.000Z,Claude,network,1.2.3.4:443,yes');
+        expect(row.timestamp).toBe(1700000001000);
+      }
+    });
+
+    it.each([undefined, null, NaN, Infinity, '1700000001000', 8640000000000001])(
+      'leaves missing or invalid TCP observation time blank (%s)',
+      async (timestamp) => {
+        const filePath = path.join(tmpDir, 'legacy.csv');
+        initExporter({
+          netConns: [{ timestamp, agent: 'Claude', remoteIp: '1.2.3.4', remotePort: 443 }],
+        });
+        mockShowSaveDialog.mockResolvedValue({ filePath });
+        expect((await exporter.exportCsv()).success).toBe(true);
+        const line = fs
+          .readFileSync(filePath, 'utf8')
+          .split('\n')
+          .find((l) => l.includes(',network,'));
+        expect(line).toBe(',Claude,network,1.2.3.4:443,no');
+      },
+    );
+
     it('handles empty activity log and no net connections', async () => {
       const filePath = path.join(tmpDir, 'log.csv');
       initExporter({ activityLog: [], netConns: [] });
