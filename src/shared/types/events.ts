@@ -246,6 +246,12 @@ export type NetworkVerdictReason =
 
 /** Enriched network connection from scanNetworkConnections */
 export interface NetworkConnection {
+  /**
+   * Unix milliseconds when TCP enumeration completed, before DNS enrichment.
+   * Preserved while the snapshot is retained; not socket creation time or
+   * continuous coverage. Absent on legacy/demo rows (blank in CSV exports).
+   */
+  readonly timestamp?: number;
   /** Same-snapshot TCP owner evidence; absent on legacy or demo rows. */
   readonly attribution?: Attribution;
   /** Optional local preceding-tool metadata; absence means no capsule was recorded. */

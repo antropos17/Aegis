@@ -124,6 +124,58 @@ describe('scan-loop', () => {
     };
   }
 
+  it('retains TCP observation time and snapshot when the next provider poll fails', async () => {
+    const agents = [{ pid: 100, agent: 'Claude', instanceId: '100:start' }];
+    const rows = [
+      {
+        ...agents[0],
+        timestamp: 1700000001000,
+        remoteIp: '1.2.3.4',
+        remotePort: 443,
+        flagged: true,
+      },
+    ];
+    let latest = [];
+    const scanNetworkConnections = vi
+      .fn()
+      .mockResolvedValueOnce(rows)
+      .mockRejectedValueOnce(new Error('fixture provider unavailable'));
+    const deps = makeDeps({
+      getLatestAgents: () => agents,
+      setLatestNetConnections: vi.fn((connections) => {
+        latest = connections;
+      }),
+      securityEvents: { push: vi.fn() },
+      network: {
+        isNetworkScanRunning: () => false,
+        setNetworkScanRunning: vi.fn(),
+        scanNetworkConnections,
+      },
+    });
+    scanLoop.init(deps);
+    scanLoop.doNetworkScan();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(latest).toBe(rows);
+    expect(deps.securityEvents.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'network-connection',
+        timestamp: 1700000001000,
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(60000);
+    scanLoop.doNetworkScan();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(scanNetworkConnections).toHaveBeenCalledTimes(2);
+    expect(deps.logger.error).toHaveBeenCalled();
+    expect(deps.setLatestNetConnections).toHaveBeenCalledTimes(1);
+    expect(latest).toBe(rows);
+    expect(latest[0].timestamp).toBe(1700000001000);
+    expect(
+      deps.sendToRenderer.mock.calls.filter(([channel]) => channel === 'network-update'),
+    ).toEqual([['network-update', rows]]);
+  });
+
   it('routes real scan security observations through the durable batcher before live dedup', async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-scan-pipe-'));
     const rows = [];

@@ -239,7 +239,12 @@ async function exportCsv(canComplete = () => true) {
   const netConns = _state.getLatestNetConnections();
   const netRows = netConns
     .map((c) => {
-      const ts = new Date().toISOString();
+      // Retained snapshots keep their observation time. Legacy/invalid rows have
+      // no recorded time; exporting them must not make them appear freshly seen.
+      const ts =
+        Number.isSafeInteger(c.timestamp) && Math.abs(c.timestamp) <= 8640000000000000
+          ? new Date(c.timestamp).toISOString()
+          : '';
       const target =
         c.localIp || c.localPort
           ? [

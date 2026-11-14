@@ -370,6 +370,36 @@ describe('network-monitor DI tests', () => {
   });
 
   describe('scanNetworkConnections()', () => {
+    it('timestamps the TCP snapshot before DNS enrichment, shared by all rows', async () => {
+      let now = 1700000000000;
+      const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+      try {
+        mockGetRawTcp.mockImplementation(async () => {
+          now = 1700000001000;
+          return [
+            { pid: 100, ip: '52.1.2.3', port: 443, state: 'ESTAB' },
+            { pid: 100, ip: '160.79.104.10', port: 443, state: 'ESTAB' },
+          ];
+        });
+        mockDnsReverse.mockImplementation(async () => {
+          now = 1700000002000;
+          return ['api.anthropic.com'];
+        });
+        mockDnsResolve.mockResolvedValue(['52.1.2.3']);
+
+        const rows = await networkMonitor.scanNetworkConnections([
+          { pid: 100, agent: 'Claude Code', instanceId: '100:start' },
+        ]);
+
+        expect(rows).toHaveLength(2);
+        expect(mockDnsReverse).toHaveBeenCalled();
+        expect(rows.map((row) => row.timestamp)).toEqual([1700000001000, 1700000001000]);
+        expect(Date.now()).toBe(1700000002000);
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
     it('allowlists mapped socket spellings without DNS and preserves observed addresses', async () => {
       const ips = ['::ffff:a04f:680a', '0:0:0:0:0:ffff:160.79.104.10'];
       mockGetRawTcp.mockResolvedValue(
