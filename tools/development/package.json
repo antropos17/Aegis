@@ -6,6 +6,6 @@
     "map": "node map.mjs"
   },
   "dependencies": {
-    "dependency-cruiser": "18.7.2"
+    "dependency-cruiser": "18.8.0"
   }
 }
