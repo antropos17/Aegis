@@ -17,6 +17,7 @@ const { dialog, shell, app } = require('electron');
 const { UNKNOWN_SOURCE_LABEL, EVIDENCE_CODES } = require('./attribution');
 const { replaceFileContents } = require('./export-file-replace');
 const { writePrivateReport, startPrivateReportRetention } = require('./private-report-temp');
+const { CSV_HEADER, formatActivityCsvRow, formatNetworkCsvRow } = require('./export-csv-row');
 const {
   describeObservation,
   groupObservations,
@@ -72,25 +73,6 @@ function init(state) {
     () => app.getPath('temp'),
     () => require('./logger').warn('exports', 'Private report retention unavailable'),
   );
-}
-
-/**
- * Escape a value for safe CSV embedding.
- * @param {*} val
- * @returns {string}
- * @since v0.1.0
- */
-function csvEscape(val) {
-  const raw = String(val);
-  // Spreadsheet applications may interpret quoted cells as formulas too.
-  const str =
-    typeof val === 'string' && (/^[\s]*[=+@-]/.test(raw) || /^[\t\r\n]/.test(raw))
-      ? "'" + raw
-      : raw;
-  if (/[",\r\n]/.test(str)) {
-    return '"' + str.replace(/"/g, '""') + '"';
-  }
-  return str;
 }
 
 /**
@@ -227,42 +209,10 @@ async function exportCsv(canComplete = () => true) {
   });
   if (!canComplete()) return { success: false };
   if (result.canceled || !result.filePath) return { success: false };
-  const header = 'Timestamp,Agent Name,Action Type,Target,Sensitive\n';
-  const rows = _state.activityLog
-    .map((e) => {
-      const ts = new Date(e.timestamp).toISOString();
-      const action = e.action || 'accessed';
-      const sensitive = e.sensitive ? 'yes' : 'no';
-      return [ts, displayAgent(e), action, e.file, sensitive].map(csvEscape).join(',');
-    })
-    .join('\n');
+  const header = CSV_HEADER + '\n';
+  const rows = _state.activityLog.map((e) => formatActivityCsvRow(e, displayAgent(e))).join('\n');
   const netConns = _state.getLatestNetConnections();
-  const netRows = netConns
-    .map((c) => {
-      // Retained snapshots keep their observation time. Legacy/invalid rows have
-      // no recorded time; exporting them must not make them appear freshly seen.
-      const ts =
-        Number.isSafeInteger(c.timestamp) && Math.abs(c.timestamp) <= 8640000000000000
-          ? new Date(c.timestamp).toISOString()
-          : '';
-      const target =
-        c.localIp || c.localPort
-          ? [
-              endpointLabel(c),
-              'Local ' +
-                (endpointLabel({ remoteIp: c.localIp, remotePort: c.localPort }) ||
-                  'port ' + c.localPort),
-              'PID ' + c.pid,
-              c.state,
-            ]
-              .filter(Boolean)
-              .join(' · ')
-          : endpointLabel(c);
-      return [ts, displayAgent(c), 'network', target, c.flagged ? 'yes' : 'no']
-        .map(csvEscape)
-        .join(',');
-    })
-    .join('\n');
+  const netRows = netConns.map((c) => formatNetworkCsvRow(c, displayAgent(c))).join('\n');
   const csv = header + rows + (netRows ? '\n' + netRows : '');
   const eventCount = _state.activityLog.length + netConns.length;
   const failure = await writeActivityExport(result.filePath, csv, canComplete, 'CSV export');

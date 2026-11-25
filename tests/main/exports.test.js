@@ -68,6 +68,50 @@ describe('exports', () => {
     return state;
   }
 
+  const EXPECTED_CSV_HEADER =
+    'Timestamp,Agent Name,Action Type,Target,Sensitive,PID,Instance ID,Source,' +
+    'Attribution,Attribution Evidence,Network Verdict,Network Verdict Reason';
+
+  function parseCsv(content) {
+    const rows = [];
+    let row = [];
+    let cell = '';
+    let inQuotes = false;
+    for (let i = 0; i < content.length; i++) {
+      const ch = content[i];
+      if (inQuotes) {
+        if (ch === '"' && content[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else if (ch === '"') {
+          inQuotes = false;
+        } else {
+          cell += ch;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        row.push(cell);
+        cell = '';
+      } else if (ch === '\n') {
+        row.push(cell);
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+        cell = '';
+      } else if (ch !== '\r') {
+        cell += ch;
+      }
+    }
+    if (inQuotes) throw new Error('Unterminated CSV quote');
+    if (cell.length > 0 || row.length > 0) {
+      row.push(cell);
+      rows.push(row);
+    }
+    return rows;
+  }
+
   it.each([
     ['exportLog', 'json'],
     ['exportCsv', 'csv'],
@@ -403,12 +447,23 @@ describe('exports', () => {
 
       const content = fs.readFileSync(filePath, 'utf-8');
       const lines = content.split('\n');
-      expect(lines[0]).toBe('Timestamp,Agent Name,Action Type,Target,Sensitive');
-      expect(lines[1]).toContain('Claude');
-      expect(lines[1]).toContain('read');
-      expect(lines[1]).toContain('no');
-      expect(lines[2]).toContain('write');
-      expect(lines[2]).toContain('yes');
+      expect(lines[0]).toBe(EXPECTED_CSV_HEADER);
+      const parsed = parseCsv(content);
+      expect(parsed).toHaveLength(3);
+      expect(parsed[1].slice(0, 5)).toEqual([
+        '2023-11-14T22:13:20.000Z',
+        'Claude',
+        'read',
+        '/a.js',
+        'no',
+      ]);
+      expect(parsed[2].slice(0, 5)).toEqual([
+        '2023-11-14T22:13:21.000Z',
+        'Claude',
+        'write',
+        '/b.js',
+        'yes',
+      ]);
     });
 
     it('writes "Unknown source" instead of a blank cell for an unattributed event', async () => {
@@ -432,10 +487,10 @@ describe('exports', () => {
       mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
       await exporter.exportCsv();
 
-      const row = fs.readFileSync(filePath, 'utf-8').split('\n')[1];
-      expect(row).toContain('Unknown source');
-      // A blank Agent Name cell would leave two commas back to back.
-      expect(row).not.toContain(',,');
+      const [, cells] = parseCsv(fs.readFileSync(filePath, 'utf-8'));
+      expect(cells).toHaveLength(12);
+      expect(cells[1]).toBe('Unknown source');
+      expect(cells.slice(5)).toEqual(['', '', '', 'unattributed', 'no-owner-match', '', '']);
     });
 
     it('includes network connections in CSV', async () => {
@@ -475,7 +530,7 @@ describe('exports', () => {
           .readFileSync(filePath, 'utf8')
           .split('\n')
           .find((l) => l.includes(',network,'));
-        expect(line).toBe('2023-11-14T22:13:21.000Z,Claude,network,1.2.3.4:443,yes');
+        expect(line).toBe('2023-11-14T22:13:21.000Z,Claude,network,1.2.3.4:443,yes,,,,,,,');
         expect(row.timestamp).toBe(1700000001000);
       }
     });
@@ -493,7 +548,7 @@ describe('exports', () => {
           .readFileSync(filePath, 'utf8')
           .split('\n')
           .find((l) => l.includes(',network,'));
-        expect(line).toBe(',Claude,network,1.2.3.4:443,no');
+        expect(line).toBe(',Claude,network,1.2.3.4:443,no,,,,,,,');
       },
     );
 
@@ -508,7 +563,554 @@ describe('exports', () => {
       expect(result.eventCount).toBe(0);
 
       const content = fs.readFileSync(filePath, 'utf-8');
-      expect(content.trim()).toBe('Timestamp,Agent Name,Action Type,Target,Sensitive');
+      expect(content.trim()).toBe(EXPECTED_CSV_HEADER);
+    });
+
+    it('retains distinct instance lifetimes for one PID and synthetic pid 0 in CSV', async () => {
+      const filePath = path.join(tmpDir, 'lifetimes.csv');
+      initExporter({
+        activityLog: [
+          {
+            timestamp: 1700000000000,
+            agent: 'Claude',
+            pid: 100,
+            instanceId: '100:1700000000000',
+            source: 'rm-hold',
+            file: '/repo/one.txt',
+            sensitive: false,
+            action: 'holding',
+            attribution: { status: 'confirmed', evidence: ['rm-holder-pid'] },
+          },
+          {
+            timestamp: 1700000001000,
+            agent: 'Claude',
+            pid: 100,
+            instanceId: '100:1700000001000',
+            source: 'handle-scan',
+            file: '/repo/two.txt',
+            sensitive: false,
+            action: 'accessed',
+            attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+          },
+          {
+            timestamp: 1700000002000,
+            agent: 'Kilo Code',
+            pid: 0,
+            instanceId: '0:kilo-code',
+            source: 'chokidar-write',
+            file: '/repo/.kilocode/config.json',
+            sensitive: false,
+            action: 'modified',
+            attribution: { status: 'inferred', evidence: ['self-config-path'] },
+          },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const rows = parseCsv(fs.readFileSync(filePath, 'utf8'));
+      expect(rows).toHaveLength(4);
+      expect(rows[1].slice(5)).toEqual([
+        '100',
+        '100:1700000000000',
+        'rm-hold',
+        'confirmed',
+        'rm-holder-pid',
+        '',
+        '',
+      ]);
+      expect(rows[2].slice(5)).toEqual([
+        '100',
+        '100:1700000001000',
+        'handle-scan',
+        'confirmed',
+        'handle-scan-pid',
+        '',
+        '',
+      ]);
+      expect(rows[3].slice(5)).toEqual([
+        '0',
+        '0:kilo-code',
+        'chokidar-write',
+        'inferred',
+        'self-config-path',
+        '',
+        '',
+      ]);
+    });
+
+    it('never reconstructs instanceId from PID or infers missing actors on absent attribution', async () => {
+      const filePath = path.join(tmpDir, 'absent-provenance.csv');
+      initExporter({
+        activityLog: [
+          {
+            timestamp: 1700000000000,
+            agent: 'Fixture',
+            pid: 42,
+            file: '/fixture/legacy.js',
+            action: 'read',
+          },
+          {
+            timestamp: 1700000001000,
+            agent: '',
+            pid: 42,
+            instanceId: null,
+            file: 'C:/Users/test/.codex/config.toml',
+            sensitive: true,
+            action: 'modified',
+            attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+          },
+          {
+            timestamp: 1700000002000,
+            agent: '',
+            pid: null,
+            instanceId: null,
+            file: '/fixture/unowned.js',
+            action: 'accessed',
+            attribution: { status: 'unattributed', evidence: ['population-unavailable'] },
+          },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const rows = parseCsv(fs.readFileSync(filePath, 'utf8'));
+      expect(rows).toHaveLength(4);
+      expect(rows[1].slice(1)).toEqual([
+        'Fixture',
+        'read',
+        '/fixture/legacy.js',
+        'no',
+        '42',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ]);
+      expect(rows[2].slice(1)).toEqual([
+        'Codex resource (actor not recorded)',
+        'modified',
+        'C:/Users/test/.codex/config.toml',
+        'yes',
+        '42',
+        '',
+        '',
+        'unattributed',
+        'no-owner-match',
+        '',
+        '',
+      ]);
+      expect(rows[3].slice(1)).toEqual([
+        'Unknown source',
+        'accessed',
+        '/fixture/unowned.js',
+        'no',
+        '',
+        '',
+        '',
+        'unattributed',
+        'population-unavailable',
+        '',
+        '',
+      ]);
+    });
+
+    it('keeps allowlisted sources and joins filtered multi-code evidence in CSV', async () => {
+      const filePath = path.join(tmpDir, 'evidence.csv');
+      initExporter({
+        activityLog: [
+          {
+            timestamp: 1700000000000,
+            agent: 'Claude',
+            pid: 88,
+            instanceId: '88:1700000000000',
+            source: 'watcher',
+            file: '/home/user/.claude/settings.json',
+            sensitive: false,
+            action: 'holding',
+            attribution: {
+              status: 'confirmed',
+              evidence: ['rm-holder-pid', 'self-config-path', 'unlisted-code'],
+            },
+          },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const [, cells] = parseCsv(fs.readFileSync(filePath, 'utf8'));
+      expect(cells.slice(5)).toEqual([
+        '88',
+        '88:1700000000000',
+        'watcher',
+        'confirmed',
+        'rm-holder-pid;self-config-path',
+        '',
+        '',
+      ]);
+    });
+
+    it('exports all three network verdicts, all six verdict reasons, and network attribution', async () => {
+      const filePath = path.join(tmpDir, 'network-verdicts.csv');
+      initExporter({
+        netConns: [
+          {
+            timestamp: 1700000000000,
+            agent: 'Claude',
+            pid: 101,
+            instanceId: '101:1700000000000',
+            remoteIp: '160.79.104.10',
+            remotePort: 443,
+            flagged: false,
+            verdict: 'allowlisted',
+            verdictReason: 'ip-allowlist',
+            attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
+          },
+          {
+            timestamp: 1700000001000,
+            agent: 'Claude',
+            pid: 101,
+            instanceId: '101:1700000000000',
+            remoteIp: '203.0.113.8',
+            domain: 'api.anthropic.com',
+            remotePort: 443,
+            flagged: false,
+            verdict: 'allowlisted',
+            verdictReason: 'domain-allowlist',
+            attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
+          },
+          {
+            timestamp: 1700000002000,
+            agent: 'Claude',
+            pid: 101,
+            instanceId: '101:1700000000000',
+            remoteIp: '198.51.100.1',
+            remotePort: 443,
+            flagged: true,
+            verdict: 'unknown',
+            verdictReason: 'ptr-missing',
+            attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
+          },
+          {
+            timestamp: 1700000003000,
+            agent: 'Claude',
+            pid: 101,
+            instanceId: '101:1700000000000',
+            remoteIp: '198.51.100.2',
+            remotePort: 443,
+            flagged: true,
+            verdict: 'unknown',
+            verdictReason: 'ptr-unconfirmed',
+            attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
+          },
+          {
+            timestamp: 1700000004000,
+            agent: 'Claude',
+            pid: 101,
+            instanceId: '101:1700000000000',
+            remoteIp: '198.51.100.3',
+            remotePort: 443,
+            flagged: true,
+            verdict: 'unknown',
+            verdictReason: 'dns-timeout',
+            attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
+          },
+          {
+            timestamp: 1700000005000,
+            agent: '',
+            pid: 999,
+            instanceId: null,
+            remoteIp: '198.51.100.4',
+            domain: 'exfil.example',
+            remotePort: 8443,
+            flagged: true,
+            verdict: 'flagged',
+            verdictReason: 'domain-not-allowlisted',
+            attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+          },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const rows = parseCsv(fs.readFileSync(filePath, 'utf8'));
+      expect(rows).toHaveLength(7);
+      expect(rows[1].slice(1)).toEqual([
+        'Claude',
+        'network',
+        '160.79.104.10:443',
+        'no',
+        '101',
+        '101:1700000000000',
+        '',
+        'confirmed',
+        'os-tcp-owner-pid',
+        'allowlisted',
+        'ip-allowlist',
+      ]);
+      expect(rows[2].slice(4)).toEqual([
+        'no',
+        '101',
+        '101:1700000000000',
+        '',
+        'confirmed',
+        'os-tcp-owner-pid',
+        'allowlisted',
+        'domain-allowlist',
+      ]);
+      expect(rows[3].slice(10)).toEqual(['unknown', 'ptr-missing']);
+      expect(rows[4].slice(10)).toEqual(['unknown', 'ptr-unconfirmed']);
+      expect(rows[5].slice(10)).toEqual(['unknown', 'dns-timeout']);
+      expect(rows[6].slice(1)).toEqual([
+        'Unknown source',
+        'network',
+        'exfil.example:8443',
+        'yes',
+        '999',
+        '',
+        '',
+        'unattributed',
+        'no-owner-match',
+        'flagged',
+        'domain-not-allowlisted',
+      ]);
+    });
+
+    it('never infers network verdicts from flagged on legacy rows', async () => {
+      const filePath = path.join(tmpDir, 'legacy-verdicts.csv');
+      initExporter({
+        netConns: [
+          { agent: 'Claude', remoteIp: '1.2.3.4', remotePort: 443, flagged: true },
+          { agent: 'Claude', remoteIp: '1.2.3.5', remotePort: 443, flagged: false },
+          { agent: 'Claude', remoteIp: '1.2.3.6', remotePort: 443, verdictReason: 'ip-allowlist' },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const rows = parseCsv(fs.readFileSync(filePath, 'utf8'));
+      expect(rows).toHaveLength(4);
+      expect(rows[1].slice(4)).toEqual(['yes', '', '', '', '', '', '', '']);
+      expect(rows[2].slice(4)).toEqual(['no', '', '', '', '', '', '', '']);
+      expect(rows[3].slice(4)).toEqual(['no', '', '', '', '', '', '', '']);
+    });
+
+    it('preserves local-socket details in Target alongside provenance and verdicts', async () => {
+      const filePath = path.join(tmpDir, 'socket-verdicts.csv');
+      initExporter({
+        netConns: [52001, 52002].map((localPort) => ({
+          timestamp: 1700000000000,
+          agent: 'Codex',
+          pid: 17,
+          instanceId: '17:1700000000000',
+          remoteIp: '192.0.2.1',
+          remotePort: 443,
+          localIp: '10.0.0.2',
+          localPort,
+          state: 'Established',
+          flagged: false,
+          verdict: 'allowlisted',
+          verdictReason: 'ip-allowlist',
+          attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
+        })),
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const rows = parseCsv(fs.readFileSync(filePath, 'utf8'));
+      expect(rows).toHaveLength(3);
+      expect(rows[1].slice(3)).toEqual([
+        '192.0.2.1:443 · Local 10.0.0.2:52001 · PID 17 · Established',
+        'no',
+        '17',
+        '17:1700000000000',
+        '',
+        'confirmed',
+        'os-tcp-owner-pid',
+        'allowlisted',
+        'ip-allowlist',
+      ]);
+      expect(rows[2].slice(3)).toEqual([
+        '192.0.2.1:443 · Local 10.0.0.2:52002 · PID 17 · Established',
+        'no',
+        '17',
+        '17:1700000000000',
+        '',
+        'confirmed',
+        'os-tcp-owner-pid',
+        'allowlisted',
+        'ip-allowlist',
+      ]);
+    });
+
+    it('neutralizes formula prefixes and escapes commas, quotes, and multiline values', async () => {
+      const filePath = path.join(tmpDir, 'escaping.csv');
+      initExporter({
+        activityLog: [
+          {
+            timestamp: 1700000000000,
+            agent: 'Agent, "X"\n=SUM(1)',
+            pid: 100,
+            instanceId: '=100:formula,"id"\nline2',
+            source: 'chokidar-write',
+            file: '\n=1+1, "secret"',
+            sensitive: true,
+            action: 'modified',
+            attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+          },
+        ],
+        netConns: [
+          {
+            timestamp: 1700000001000,
+            agent: '@net, "agent"',
+            pid: 17,
+            instanceId: '+17:net',
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            localIp: '10.0.0.2',
+            localPort: 52001,
+            state: 'ESTAB\r\n+cmd',
+            flagged: true,
+            verdict: 'flagged',
+            verdictReason: 'domain-not-allowlisted',
+          },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const rows = parseCsv(fs.readFileSync(filePath, 'utf8'));
+      expect(rows).toHaveLength(3);
+      expect(rows[1]).toHaveLength(12);
+      expect(rows[1][1]).toBe('Agent, "X"\n=SUM(1)');
+      expect(rows[1][3]).toBe("'\n=1+1, \"secret\"");
+      expect(rows[1][6]).toBe('\'=100:formula,"id"\nline2');
+      expect(rows[2]).toHaveLength(12);
+      expect(rows[2][1]).toBe('\'@net, "agent"');
+      expect(rows[2][3]).toBe('1.2.3.4:443 · Local 10.0.0.2:52001 · PID 17 · ESTAB\r\n+cmd');
+      expect(rows[2][6]).toBe("'+17:net");
+    });
+
+    it('drops arbitrary, nested, oversized, and canary fields from CSV across row kinds', async () => {
+      const filePath = path.join(tmpDir, 'anti-leak.csv');
+      const hostile = 'fixture-secret-must-not-export';
+      initExporter({
+        activityLog: [
+          {
+            timestamp: NaN,
+            agent: 'Fixture',
+            pid: -1,
+            instanceId: { contents: hostile },
+            source: hostile,
+            file: '/fixture/clean.js',
+            sensitive: false,
+            reason: hostile,
+            contents: hostile,
+            apiKey: hostile,
+            verdict: 'flagged',
+            verdictReason: 'ip-allowlist',
+            extra: { verdict: 'flagged', verdictReason: 'ip-allowlist', apiKey: hostile },
+            details: { apiKey: hostile },
+            attribution: {
+              status: hostile,
+              evidence: [hostile, { contents: hostile }],
+              extra: { apiKey: hostile },
+            },
+          },
+          {
+            timestamp: 1700000000000,
+            agent: 'Fixture',
+            pid: 5,
+            instanceId: hostile.padEnd(257, 'x'),
+            source: { apiKey: hostile },
+            file: '/fixture/oversized.js',
+            sensitive: false,
+            attribution: { status: 'inferred', evidence: { contents: hostile } },
+          },
+        ],
+        netConns: [
+          {
+            timestamp: 1700000001000,
+            agent: 'Fixture',
+            pid: { toString: () => hostile },
+            instanceId: { apiKey: hostile },
+            source: 'chokidar-write',
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            localIp: { toString: () => hostile },
+            localPort: hostile,
+            state: { toString: () => hostile },
+            flagged: false,
+            verdict: hostile,
+            verdictReason: hostile,
+            contents: hostile,
+            apiKey: hostile,
+            extra: { verdict: 'flagged', apiKey: hostile },
+            details: { apiKey: hostile },
+            attribution: { status: hostile, evidence: [hostile] },
+          },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect((await exporter.exportCsv()).success).toBe(true);
+
+      const raw = fs.readFileSync(filePath, 'utf8');
+      expect(raw).not.toContain(hostile);
+
+      const rows = parseCsv(raw);
+      expect(rows).toHaveLength(4);
+      expect(rows[1]).toEqual([
+        '',
+        'Fixture',
+        'accessed',
+        '/fixture/clean.js',
+        'no',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ]);
+      expect(rows[2]).toEqual([
+        '2023-11-14T22:13:20.000Z',
+        'Fixture',
+        'accessed',
+        '/fixture/oversized.js',
+        'no',
+        '5',
+        '',
+        '',
+        'inferred',
+        '',
+        '',
+        '',
+      ]);
+      expect(rows[3]).toEqual([
+        '2023-11-14T22:13:21.000Z',
+        'Fixture',
+        'network',
+        '1.2.3.4:443',
+        'no',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ]);
     });
   });
 
