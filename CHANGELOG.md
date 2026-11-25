@@ -20,6 +20,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.26.0-beta (2026-11-25)
+
+## What's Changed
+* docs: align public context with 0.25.0-beta by @antropos17 in https://github.com/antropos17/Aegis/pull/1246
+* ci: open translation PRs for missing Observatory messages by @ufortstephen in https://github.com/antropos17/Aegis/pull/1248
+* i18n: translate the Observatory anomaly message into six languages by @ufortstephen in https://github.com/antropos17/Aegis/pull/1249
+* docs: connect hook guides to app wiring by @jay23606 in https://github.com/antropos17/Aegis/pull/1250
+* fix(network): preserve TCP snapshot observation time by @antropos17 in https://github.com/antropos17/Aegis/pull/1251
+* chore(deps-dev): bump the npm-minor-patch group with 7 updates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1252
+* ci: publish frontend demo to GitHub Pages by @antropos17 in https://github.com/antropos17/Aegis/pull/1257
+* feat(exports): retain observation provenance and network verdicts in CSV by @isyanpcr in https://github.com/antropos17/Aegis/pull/1256
+* chore(tools): add shared progress tracker reporter by @antropos17 in https://github.com/antropos17/Aegis/pull/1258
+
+## New Contributors
+* @jay23606 made their first contribution in https://github.com/antropos17/Aegis/pull/1250
+* @isyanpcr made their first contribution in https://github.com/antropos17/Aegis/pull/1256
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.25.0-beta...aegis-v0.26.0-beta
+
 ## 0.25.0-beta (2026-11-12)
 
 ## What's Changed
